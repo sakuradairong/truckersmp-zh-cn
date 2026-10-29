@@ -14,10 +14,12 @@ import zipfile
 from common import ROOT, atomic_json, digest, plain, require
 import installer_backend as backend
 import resources
+import installer_settings
 
 
 def collect_licenses(folder):
     folder.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(ROOT / 'vendor/minhook/LICENSE.txt', folder / 'MinHook.txt')
     # These are copied from installed build dependencies; they contain no user data.
     for package in ('Pillow', 'PyInstaller'):
         distribution = metadata.distribution(package)
@@ -56,18 +58,19 @@ def collect_licenses(folder):
 def build(assets):
     require(sys.platform == 'win32' and sys.maxsize > 2**32, 'Build on Windows x64')
     backend.bundled_fonts(assets)
+    installer_settings.bundled(assets)
     work = ROOT / 'build/installer-package'
     work.mkdir(parents=True, exist_ok=True)
     licenses = work / 'runtime-licenses'
     collect_licenses(licenses)
     version_file = work / 'version-info.txt'
-    version_file.write_text("""VSVersionInfo(ffi=FixedFileInfo(filevers=(0,2,0,2), prodvers=(0,2,0,2),
+    version_file.write_text("""VSVersionInfo(ffi=FixedFileInfo(filevers=(0,3,0,1), prodvers=(0,3,0,1),
 mask=0x3f, flags=2, OS=0x40004, fileType=0x1, subtype=0x0, date=(0,0)), kids=[
 StringFileInfo([StringTable('040904b0', [
 StringStruct('FileDescription', 'TruckersMP Simplified Chinese installer'),
-StringStruct('FileVersion', '0.2.0-preview.2'),
+StringStruct('FileVersion', '0.3.0-preview.1'),
 StringStruct('ProductName', 'TruckersMP ZH-CN'),
-StringStruct('ProductVersion', '0.2.0-preview.2'),
+StringStruct('ProductVersion', '0.3.0-preview.1'),
 StringStruct('LegalCopyright', 'MIT; bundled fonts under SIL OFL 1.1')])]),
 VarFileInfo([VarStruct('Translation', [1033,1200])])])""", encoding='utf-8')
     executable_name = 'TruckersMP-ZH-CN-Setup-' + backend.VERSION
@@ -81,6 +84,7 @@ VarFileInfo([VarStruct('Translation', [1033,1200])])])""", encoding='utf-8')
     data.extend((assets / name, 'assets') for name in (*backend.FONT_FILES.values(), *backend.LICENSE_FILES,
                 'font-bundle.json', 'font-report.json'))
     data.append((licenses, 'runtime-licenses'))
+    data.extend((assets / name, 'assets') for name in installer_settings.ASSETS)
     for source, destination in data:
         require(plain(source).exists(), 'Missing installer data: ' + source.name)
         command.extend(('--add-data', str(source) + ';' + destination))
@@ -94,21 +98,22 @@ VarFileInfo([VarStruct('Translation', [1033,1200])])])""", encoding='utf-8')
 
 
 def package(executable, assets):
-    # No client .mp/.dll, upstream font inputs, backup, SDK or native Settings module is packaged.
+    # Includes our Settings localization DLL; no TMP client .mp/.dll, SDK, fixture or backup.
     folder = executable.parent
     instructions = folder / '安装说明.txt'
     instructions.write_text(
         'TruckersMP 简体中文安装器 ' + backend.VERSION + '\n\n'
         '1. 正常退出 ETS2、ATS 和 TMP 启动器。\n'
-        '2. 双击同目录的安装器 EXE，确认识别到的 TMP 安装目录。\n'
+        '2. 双击同目录的安装器 EXE，确认 TMP 安装目录及 ETS2 游戏目录。\n'
         '3. 点击“安装汉化”，完成后正常从 TMP 启动器进入游戏。\n'
         '4. 如需撤销，重新运行安装器，点击“恢复安装前状态”。\n\n'
-        'Windows x64 / ETS2；按界面资源和控件识别兼容性，不限定 TMP 版本或原始文件哈希。\n'
-        '已安装旧版汉化时，可直接点击“更新 / 检查汉化”，保留首次安装前的恢复点。\n'
-        '包括 Tab、公交和货运静态文案；不安装实验性 Settings 模块。\n'
+        '适用 Windows x64 / ETS2；按实际资源与 Settings 代码、控件结构检查兼容性。\n'
+        '默认包括 Tab、公交、货运静态文案及实验性 Settings 五页汉化。\n'
+        '旧汉化可直接点击“更新 / 检查汉化”，保留首次安装前的恢复点。\n'
+        '如只需要资源汉化，可取消勾选 Settings。旧安装器未包含 Settings，需运行此新版补装。\n'
         '备份保存在 %LOCALAPPDATA%\\TruckersMPZH，删除下载的 EXE 不会删除备份。\n'
         '无需 Python、编译器、SDK、联网下载或用户自备字体。\n'
-        '预览版：新字体通过离线验证，游戏内显示仍待验收。\n'
+        '预览版：字体与 Settings 模块通过离线验证，游戏内显示仍待验收。\n'
         '本项目非官方项目，未获 TruckersMP 认证，不承诺联网使用或处罚风险为零。\n\n'
         '源码：https://github.com/sakuradairong/truckersmp-zh-cn\n'
         '字体为 Noto 派生作品，适用 SIL OFL 1.1。版权声明和完整许可在附带文本及安装器“字体与许可”中。\n',
@@ -127,7 +132,7 @@ def package(executable, assets):
     report = dict(version=backend.VERSION, files={path.name: dict(bytes=path.stat().st_size, sha256=digest(path))
                                                  for path in (executable, archive)},
                   zip_entries=[name for _, name in entries], code_signed=False, published=False,
-                  fonts_bundled=True, client_assets_bundled=False, native_settings_bundled=False)
+                  fonts_bundled=True, client_assets_bundled=False, native_settings_bundled=True)
     atomic_json(folder / 'installer-package.json', report)
     return report
 

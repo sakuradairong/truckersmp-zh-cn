@@ -5,6 +5,7 @@ from common import atomic_json, digest, plain, require
 import installer_backend as backend
 from installer_store import Store
 import resources
+from installer_settings import SettingsStore, DLL
 
 
 def run(directory, source=None, assets=None):
@@ -18,7 +19,7 @@ def run(directory, source=None, assets=None):
     require(not directory.is_relative_to(source) and not source.is_relative_to(directory), 'Self-test must be isolated')
     originals = resources.inputs(source)
     live_before = {name: digest(plain(source / name)) if (source / name).exists() else None
-                   for name in ('core_ets2mp.dll', *resources.INPUTS, *resources.OUTPUTS)}
+                   for name in {*resources.INPUTS, *resources.OUTPUTS, 'core_ets2mp.dll'}}
     fonts = backend.bundled_fonts(assets)
     directory.mkdir(parents=True)
     clone = directory / 'TMP 安装测试'
@@ -26,6 +27,11 @@ def run(directory, source=None, assets=None):
         target = clone / name
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(data)
+    (clone / 'core_ets2mp.dll').write_bytes((source / 'core_ets2mp.dll').read_bytes())
+    game = directory / 'ETS2 游戏测试'
+    executable = game / 'bin/win_x64/eurotrucks2.exe'
+    executable.parent.mkdir(parents=True)
+    executable.write_bytes(b'isolated fixture: never executed')
     baseline = {}
     for index, name in enumerate(resources.OUTPUTS):
         target = clone / name
@@ -37,11 +43,21 @@ def run(directory, source=None, assets=None):
     store = Store(clone, state, processes=lambda: [])
     result = store.install(fonts['regular'], fonts['semibold'], fonts['mono'], backend.VERSION)
     require(result['state'] == 'installed' and store.status()['state'] == 'installed', 'Installation self-test failed')
+    native = SettingsStore(clone, state, processes=lambda: [])
+    native_result = native.install(game, assets, backend.VERSION)
+    require(native_result['state'] == 'installed' and (executable.parent / 'plugins' / DLL).is_file(),
+            'Settings DLL was not installed at the SCS plugin loading path')
+    require(backend.inspect(clone, state, game_root=game, include_settings=True, assets=assets)['compatible'],
+            'Combined installer compatibility self-test failed')
     package, receipt = store.current()
     require(all(store.actual(name) == row['installed_sha256'] for name, row in receipt['files'].items()),
             'Installed self-test bytes differ')
     again = store.install(fonts['regular'], fonts['semibold'], fonts['mono'], backend.VERSION)
     require(again['state'] == 'already_installed', 'Idempotence self-test failed')
+    require(native.install(game, assets, backend.VERSION)['state'] == 'already_installed',
+            'Settings idempotence self-test failed')
+    native.restore()
+    require(not (executable.parent / 'plugins' / DLL).exists(), 'Settings restore self-test failed')
     restored = store.restore()
     require(restored['state'] == 'restored' and all(store.actual(name) == value for name, value in baseline.items()),
             'Restore self-test failed')
@@ -52,5 +68,7 @@ def run(directory, source=None, assets=None):
     report = dict(passed=True, version=backend.VERSION, files=len(resources.OUTPUTS), install=True,
                   idempotence=True, restore=True, persistent_receipts=True, live_source_unchanged=True,
                   unicode_paths=True, game_started=False)
+    report.update(settings_installed=True, settings_restore=True, settings_idempotence=True,
+                  settings_path='bin/win_x64/plugins/' + DLL)
     atomic_json(directory / 'self-test.json', report)
     return report

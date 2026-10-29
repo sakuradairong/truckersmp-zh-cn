@@ -17,8 +17,8 @@ sys.dont_write_bytecode = True
 ROOT = Path(__file__).resolve().parents[1]
 RELEASE = ROOT / 'build/native-settings-zh'
 DLL = 'TmpSettingsZh.dll'
-CORE_SHA = '98033a4939575cd5c961ea052b7f831a7313bd40390f400d222b866bc48890ce'
 NATIVE_SOURCES = ('src/settings_zh.cpp','src/settings_zh.def','profiles/settings-zh-cn.json',
+                  'profiles/settings-abi.json','tools/settings_compatibility.py',
                   'tests/native_settings_zh_test.cpp','tools/prepare_native_settings_zh.py','build-settings-zh.ps1',
                   'tools/native_settings_package.py') + tuple(sorted(p.relative_to(ROOT).as_posix()
                   for p in (ROOT/'vendor/minhook').rglob('*') if p.is_file()))
@@ -101,7 +101,7 @@ class Layout:
 def verify(layout):
     layout.paths()
     manifest=json.loads((layout.release/'package.json').read_text(encoding='utf-8'))
-    require(manifest['schema']==1 and manifest['package']=='TmpSettingsZh' and manifest['core_sha256']==CORE_SHA,'Unknown package identity')
+    require(manifest['schema']==1 and manifest['package']=='TmpSettingsZh','Unknown package identity')
     require(set(manifest['files'])==set(PACKAGE_FILES),'Unexpected package file scope')
     require(set(manifest['source_files'])==set(NATIVE_SOURCES),'Incomplete native source scope')
     require(manifest['preserved_inputs']=={str(p):h for p,h in layout.pins.items()},'Preservation baseline differs')
@@ -132,7 +132,8 @@ def seal(layout):
     require((layout.release/'native-checks.json').stat().st_mtime_ns >= (layout.release/DLL).stat().st_mtime_ns,'Stale native checks')
     for relative in NATIVE_SOURCES:
         require((ROOT/relative).stat().st_mtime_ns <= (layout.release/DLL).stat().st_mtime_ns,'Rebuild after source changes: '+relative)
-    manifest=dict(schema=1,package='TmpSettingsZh',version='0.1.0-experimental.1',core_sha256=CORE_SHA,
+    reference=json.loads((layout.release/'native-profile.json').read_text(encoding='utf-8'))
+    manifest=dict(schema=1,package='TmpSettingsZh',version='0.2.0-experimental.1',core_sha256=reference['core_sha256'],
                   created_utc=datetime.now(timezone.utc).isoformat(),
                   files={n:digest(layout.release/n) for n in PACKAGE_FILES},
                   source_files={n:digest(ROOT/n) for n in NATIVE_SOURCES},
@@ -223,7 +224,8 @@ def status(layout):
 
 
 def configured_layout(tmp_root, game_root, release, action):
-    from common import UI_SHA, CLIENT_SHA
+    from common import read_json
+    from settings_compatibility import check_core
     from resources import OUTPUTS
     import check_characters
     tmp_root = tmp_root.absolute(); game_root = game_root.absolute(); release = release.absolute()
@@ -231,20 +233,17 @@ def configured_layout(tmp_root, game_root, release, action):
     plugins = game_root / 'bin/win_x64/plugins'
     require(not release.is_relative_to(tmp_root) and not release.is_relative_to(game_root),
             'Package cannot be inside the TMP/game installation')
-    expected_paths = {tmp_root / 'core_ets2mp.dll': CORE_SHA,
-                      tmp_root / 'data/shared/ui.mp': UI_SHA,
-                      tmp_root / 'data/shared/client.mp': CLIENT_SHA}
-    paths = set(expected_paths) | {tmp_root / name for name in OUTPUTS}
+    source_paths = {tmp_root / 'core_ets2mp.dll', tmp_root / 'data/shared/ui.mp', tmp_root / 'data/shared/client.mp'}
+    paths = source_paths | {tmp_root / name for name in OUTPUTS}
     if action == 'seal':
         pins = {path: digest(plain(path)) for path in paths}
-        require(all(pins[p] == value for p, value in expected_paths.items()), 'Unknown TMP source build')
+        check_core(tmp_root / 'core_ets2mp.dll', read_json(ROOT / 'profiles/settings-abi.json'))
         check_characters.validate((tmp_root/'data/shared_mod/fonts/OpenSans.ttf').read_bytes())
     else:
         manifest = json.loads((release/'package.json').read_text(encoding='utf-8'))
         recorded = manifest['preserved_inputs']
         require(set(recorded) == {str(path) for path in paths}, 'Preservation target scope differs')
         pins = {path: recorded[str(path)] for path in paths}
-        require(all(pins[p] == value for p, value in expected_paths.items()), 'Unknown TMP source build')
     return Layout(release, plugins, pins)
 
 

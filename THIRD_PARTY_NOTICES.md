@@ -9,6 +9,8 @@ their trademarks, or user-supplied fonts and SDKs. This is an unofficial project
   in `vendor/minhook/`. Source: <https://github.com/TsudaKageyu/minhook>.
   Its BSD-style license and the HDE notices are preserved in
   [vendor/minhook/LICENSE.txt](vendor/minhook/LICENSE.txt) and source headers.
+  The Settings localization DLL bundles this library; its license is also
+  available in the installer's license viewer.
 - **SCS Telemetry SDK 1.16** is an external build prerequisite and is not
   redistributed here. Official archive:
   <https://download.eurotrucksimulator2.com/scs_sdk_1_16.zip>.
@@ -44,8 +46,9 @@ their trademarks, or user-supplied fonts and SDKs. This is an unofficial project
   [licenses/Tcl-8.6.12.txt](licenses/Tcl-8.6.12.txt) for Python distributions that
   omit this file. Other Tcl versions must provide their own matching notice.
 
-The resource profile contains new text/style edits and original-file hashes.
-Full RML/Lua/JSON resources, official binaries, extracted machine-code guards,
-and test fixtures are generated from local inputs and excluded from Git and
-installer releases. Only translation transformations and open-license fonts
-are bundled in the graphical installer.
+Resource profiles contain translation and style edits. Full client RML/Lua/JSON
+resources, official binaries and executable test fixtures are excluded from Git
+and installer releases. The graphical installer bundles this project's Settings
+localization DLL, compatibility fingerprints and open-license fonts. Compatibility
+fingerprints describe only the Settings code and ABI required by the adapter;
+they are not a whitelist of complete client files or release versions.

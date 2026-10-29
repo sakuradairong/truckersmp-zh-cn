@@ -1,9 +1,8 @@
-// Presentation-only adapter for the reviewed TMP 0.7.9.2 Settings window.
+// Presentation-only adapter for compatible TMP Settings code and object layouts.
 // SCS loads this independent DLL. It has no TruckersMP SDK entry points.
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <windows.h>
-#include <bcrypt.h>
 #include <intrin.h>
 #include <atomic>
 #include <cstdint>
@@ -323,41 +322,22 @@ void* HookConvert(void* object,const void* source) {
     return result;
 }
 
-bool HashMatches(HMODULE module) {
-    wchar_t path[MAX_PATH];DWORD n=GetModuleFileNameW(module,path,MAX_PATH);
-    if(!n||n>=MAX_PATH)return false;
-    HANDLE f=CreateFileW(path,GENERIC_READ,FILE_SHARE_READ,nullptr,OPEN_EXISTING,0,nullptr);
-    if(f==INVALID_HANDLE_VALUE)return false;
-    BCRYPT_ALG_HANDLE algorithm=nullptr;BCRYPT_HASH_HANDLE hash=nullptr;
-    bool ok=BCryptOpenAlgorithmProvider(&algorithm,BCRYPT_SHA256_ALGORITHM,nullptr,0)>=0;
-    if(ok)ok=BCryptCreateHash(algorithm,&hash,nullptr,0,nullptr,0,0)>=0;
-    unsigned char buffer[32768],digest[32]{};DWORD count;char hex[65]{};
-    while(ok) {
-        if(!ReadFile(f,buffer,sizeof buffer,&count,nullptr)){ok=false;break;}
-        if(!count)break;
-        ok=BCryptHashData(hash,buffer,count,0)>=0;
-    }
-    if(ok)ok=BCryptFinishHash(hash,digest,sizeof digest,0)>=0;
-    if(hash)BCryptDestroyHash(hash);
-    if(algorithm)BCryptCloseAlgorithmProvider(algorithm,0);
-    CloseHandle(f);
-    for(unsigned i=0;i<32;++i)std::snprintf(hex+i*2,3,"%02x",digest[i]);
-    return ok&&!std::strcmp(hex,kCoreHash);
-}
 bool VerifyImage() {
     if(!Readable(core,4096))return false;
     const auto* dos=reinterpret_cast<IMAGE_DOS_HEADER*>(core);
     if(dos->e_magic!=IMAGE_DOS_SIGNATURE||dos->e_lfanew<0||dos->e_lfanew>3072)return false;
     const auto* nt=reinterpret_cast<IMAGE_NT_HEADERS64*>(core+dos->e_lfanew);
-    if(nt->Signature!=IMAGE_NT_SIGNATURE||nt->FileHeader.Machine!=IMAGE_FILE_MACHINE_AMD64||nt->OptionalHeader.SizeOfImage!=kImageSize)return false;
-    for(const auto& g:kGuards)if(!Readable(core+g.rva,g.size)||std::memcmp(core+g.rva,g.bytes,g.size))return false;
+    if(nt->Signature!=IMAGE_NT_SIGNATURE||nt->FileHeader.Machine!=IMAGE_FILE_MACHINE_AMD64||nt->OptionalHeader.Magic!=IMAGE_NT_OPTIONAL_HDR64_MAGIC)return false;
+    const auto imageSize=nt->OptionalHeader.SizeOfImage;
+    const auto inImage=[imageSize](unsigned rva,std::size_t size) {return rva<imageSize&&size<=imageSize-rva&&Readable(core+rva,size);};
+    for(const auto& g:kGuards)if(!inImage(g.rva,g.size)||std::memcmp(core+g.rva,g.bytes,g.size))return false;
+    if(!inImage(kComboVtable,0x18)||!inImage(kLabelVtable,0x560))return false;
     if(!Readable(core+kComboVtable,0x18)||*reinterpret_cast<void**>(core+kComboVtable+0x10)!=core+0x13e860)return false;
     if(!Readable(core+kLabelVtable,0x560)||PointerAt(core+kLabelVtable,0x558)!=core+0x336bc0)return false;
-    for(const auto& l:kLiterals)if(!Readable(core+l.source,std::strlen(l.text.en)+1)||std::strcmp(reinterpret_cast<char*>(core+l.source),l.text.en))return false;
+    for(const auto& l:kLiterals)if(!inImage(l.source,std::strlen(l.text.en)+1)||std::strcmp(reinterpret_cast<char*>(core+l.source),l.text.en))return false;
     return true;
 }
 void Attach(HMODULE module) {
-    if(!HashMatches(module)){Log("inactive: unsupported TMP file hash");return;}
     core=reinterpret_cast<unsigned char*>(module);
     if(!VerifyImage()){Log("inactive: loaded TMP code/ABI guard mismatch");return;}
     HMODULE pinned=nullptr;
@@ -390,7 +370,7 @@ void Attach(HMODULE module) {
     if(MH_ApplyQueued()!=MH_OK){Log("inactive: hook activation failed; original forwarding retained");return;}
     enabled=true;
     if(stopped.load()){enabled=false;return;}
-    Log("ready: experimental Settings zh-CN 0.1.0; pinned TMP 0.7.9.2; five pages; native wide strings; no TMP SDK");
+    Log("ready: experimental Settings zh-CN; code/ABI compatible; five pages; native wide strings; no TMP SDK");
     Log("ready means hooks armed only; in-game loading, appearance and selection still require observation");
 }
 DWORD WINAPI Worker(void*) {
@@ -423,7 +403,7 @@ SCSAPI_RESULT scs_telemetry_init(const scs_u32_t version,const scs_telemetry_ini
     if(!stopEvent)return SCS_RESULT_generic_error;
     workerThread=CreateThread(nullptr,0,Worker,nullptr,0,nullptr);
     if(!workerThread){CloseHandle(stopEvent);stopEvent=nullptr;return SCS_RESULT_generic_error;}
-    Log("initialized: SCS loader only; waiting for pinned TMP; existing settings values are not changed");
+    Log("initialized: SCS loader only; waiting for TMP; existing settings values are not changed");
     return SCS_RESULT_ok;
 }
 SCSAPI_VOID scs_telemetry_shutdown() {

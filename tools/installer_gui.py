@@ -1,4 +1,4 @@
-"""Chinese, offline desktop installer for the resource localization only."""
+"""Chinese offline installer for resource and optional native Settings localization."""
 from __future__ import annotations
 import argparse
 from concurrent.futures import ThreadPoolExecutor
@@ -21,11 +21,13 @@ class InstallerApp:
         self.events = queue.Queue()
         self.busy, self.current_status = False, {}
         self.path = tk.StringVar()
+        self.game_path = tk.StringVar()
+        self.include_settings = tk.BooleanVar(value=True)
         self.status = tk.StringVar(value='正在查找 TMP 安装目录…' if scan else '请选择 TMP 安装目录')
         self.state_text = tk.StringVar(value='尚未检查')
         root.title('TruckersMP 简体中文安装器')
-        root.geometry('850x620')
-        root.minsize(790, 600)
+        root.geometry('890x770')
+        root.minsize(830, 750)
         root.configure(bg='#f3f5f7')
         root.option_add('*Font', ('Microsoft YaHei UI', 10))
         style = ttk.Style(root)
@@ -51,6 +53,9 @@ class InstallerApp:
         ttk.Label(card, text='Tab 玩家面板、列表与右键菜单\n公交调度窗口、货运窗口的静态标题和按钮',
                   style='Card.TLabel', justify='left').pack(anchor='w', pady=(9, 7))
         ttk.Label(card, text='中文字体已包含；无需安装 Python 或自行寻找字体。', style='Card.TLabel').pack(anchor='w')
+        self.settings_check = ttk.Checkbutton(card, text='同时安装 Settings 五页汉化（实验性）',
+            variable=self.include_settings, command=self.check_path)
+        self.settings_check.pack(anchor='w', pady=(8, 0))
         ttk.Label(frame, text='TMP 安装目录', font=('Microsoft YaHei UI', 10, 'bold')).pack(anchor='w', pady=(19, 6))
         path_row = ttk.Frame(frame)
         path_row.pack(fill='x')
@@ -61,6 +66,14 @@ class InstallerApp:
         self.detect_button = ttk.Button(path_row, text='重新检测', command=self.detect)
         self.detect_button.pack(side='left', padx=(9, 0))
         self.path_entry.bind('<Return>', lambda event: self.check_path())
+        ttk.Label(frame, text='ETS2 游戏目录（用于 Settings）', font=('Microsoft YaHei UI', 10, 'bold')).pack(anchor='w', pady=(12, 6))
+        game_row = ttk.Frame(frame)
+        game_row.pack(fill='x')
+        self.game_entry = ttk.Entry(game_row, textvariable=self.game_path, font=('Microsoft YaHei UI', 10))
+        self.game_entry.pack(side='left', fill='x', expand=True, ipady=7)
+        self.game_button = ttk.Button(game_row, text='选择游戏目录', command=self.browse_game)
+        self.game_button.pack(side='left', padx=(9, 0))
+        self.game_entry.bind('<Return>', lambda event: self.check_path())
         self.state_label = ttk.Label(frame, textvariable=self.state_text, wraplength=750, style='Sub.TLabel')
         self.state_label.pack(anchor='w', pady=(9, 12))
         ttk.Separator(frame).pack(fill='x')
@@ -82,7 +95,7 @@ class InstallerApp:
                   style='Sub.TLabel').pack(anchor='w')
         bottom = ttk.Frame(footer)
         bottom.pack(fill='x', pady=(5, 0))
-        ttk.Label(bottom, text='ETS2 / Windows x64 · 自动检查界面资源兼容性 · ' + backend.VERSION,
+        ttk.Label(bottom, text='ETS2 / Windows x64 · 按实际资源与 Settings 结构检查  ·  ' + backend.VERSION,
                   style='Sub.TLabel').pack(side='left')
         ttk.Button(bottom, text='字体与许可', command=self.licenses).pack(side='right')
         root.protocol('WM_DELETE_WINDOW', self.close)
@@ -92,7 +105,8 @@ class InstallerApp:
 
     def set_busy(self, busy):
         self.busy = busy
-        for widget in (self.path_entry, self.browse_button, self.detect_button):
+        for widget in (self.path_entry, self.browse_button, self.detect_button,
+                       self.game_entry, self.game_button, self.settings_check):
             widget.configure(state='disabled' if busy else 'normal')
         self.install_button.configure(state='disabled')
         self.restore_button.configure(state='disabled')
@@ -135,17 +149,26 @@ class InstallerApp:
     def refresh_after_error(self):
         path = self.path.get().strip()
         if not self.busy and path:
-            self.run(lambda: backend.inspect(path, self.state_root), self.apply_status)
+            self.run(self.inspection(path), self.apply_status)
+
+    def inspection(self, path):
+        game, selected = self.game_path.get().strip(), self.include_settings.get()
+        return lambda: backend.inspect(path, self.state_root, game_root=game,
+                                       include_settings=selected, assets=self.assets)
 
     def progress_message(self, text):
         self.events.put(('progress', text))
 
     def detect(self):
+        selected, chosen_game = self.include_settings.get(), self.game_path.get().strip()
         def operation():
             paths, notes = backend.discover()
+            games, game_notes = backend.discover_game()
+            game = chosen_game or (str(games[0]) if games else '')
             if not paths:
-                return None, notes
-            return (str(paths[0]), backend.inspect(paths[0], self.state_root)), notes
+                return None, notes + game_notes
+            return (str(paths[0]), game, backend.inspect(paths[0], self.state_root,
+                game_root=game, include_settings=selected, assets=self.assets)), notes + game_notes
         self.status.set('正在查找并检查 TMP 安装目录…')
         self.run(operation, self.detected)
 
@@ -156,10 +179,11 @@ class InstallerApp:
             self.state_text.set('请选择包含 core_ets2mp.dll 的 TMP 安装目录。')
             self.current_status = {}
             return
-        path, status = found
+        path, game, status = found
         self.path.set(path)
+        self.game_path.set(game)
         self.apply_status(status)
-        self.status.set('界面资源检查完成。' if status['compatible'] else '所需界面资源无法识别，安装按钮已停用。')
+        self.status.set('检查完成。' if status['compatible'] else backend.friendly_error(ValueError(status['detail'])))
 
     def browse(self):
         path = filedialog.askdirectory(parent=self.root, title='选择 TMP 安装目录（不是 ETS2 游戏目录）', mustexist=True)
@@ -171,30 +195,44 @@ class InstallerApp:
         path = self.path.get().strip()
         if path:
             self.status.set('正在检查所选目录…')
-            self.run(lambda: backend.inspect(path, self.state_root), self.checked)
+            self.run(self.inspection(path), self.checked)
+
+    def browse_game(self):
+        path = filedialog.askdirectory(parent=self.root, title='选择 ETS2 游戏根目录（包含 bin 文件夹）', mustexist=True)
+        if path:
+            self.game_path.set(path)
+            self.check_path()
 
     def checked(self, status):
         self.apply_status(status)
-        self.status.set('检查完成。' if status['compatible'] else '此客户端暂不受支持，安装按钮已停用。')
+        self.status.set('检查完成。' if status['compatible'] else backend.friendly_error(ValueError(status['detail'])))
 
     def apply_status(self, status):
         self.current_status = status
         labels = {'not_installed': '尚未通过本安装器安装汉化', 'installed': '汉化已安装，可恢复安装前状态',
                   'restored': '已恢复安装前状态，备份仍保留', 'changed': '检测到文件变化，请保留文件并核对后再操作',
                   'applying': '上次安装中断，请先恢复安装前状态', 'restoring': '上次恢复中断，请继续恢复'}
-        prefix = '所需界面资源兼容。' if status['compatible'] else '所需界面资源无法识别。'
+        native = status.get('settings', {})
+        if not self.game_path.get() and native.get('game_root'):
+            self.game_path.set(native['game_root'])
+        prefix = '所选安装内容通过离线兼容检查。' if status['compatible'] else '所选安装内容尚未通过检查。'
         detail = '\n' + backend.friendly_error(ValueError(status['detail'])) if not status['compatible'] and status.get('detail') else ''
-        self.state_text.set(prefix + labels[status['state']] + detail)
+        self.state_text.set(prefix + labels[status['state']] + '\nSettings：' + labels.get(native.get('state'), '尚未检查') + detail)
+        allowed = ('not_installed', 'restored', 'installed')
         self.install_button.configure(text='更新 / 检查汉化' if status['state'] == 'installed' else '安装汉化',
-                                      state='normal' if status['compatible'] and status['state'] in ('not_installed', 'restored', 'installed') else 'disabled')
+            state='normal' if status['compatible'] and status['state'] in allowed and
+            (not self.include_settings.get() or native.get('state') in allowed) else 'disabled')
         self.restore_button.configure(state='normal' if status['can_restore'] else 'disabled')
-        self.backup_button.configure(state='normal' if status.get('backup_directory') else 'disabled')
+        self.backup_button.configure(state='normal' if status.get('backup_directory') or native.get('backup_directory') else 'disabled')
 
     def install(self):
         path = self.path.get().strip()
+        game, selected = self.game_path.get().strip(), self.include_settings.get()
         self.status.set('正在准备安装…')
-        self.run(lambda: backend.install(path, self.assets, self.state_root, self.progress_message),
-                 lambda result: self.finished(path, '汉化安装完成。可从 TMP 启动器进入游戏。'), refresh_on_error=True)
+        message = '汉化安装完成（含 Settings 五页模块）。请重启 TMP 后检查设置页。' if selected else '资源汉化已安装 / 检查完成；本次未安装 Settings。'
+        self.run(lambda: backend.install(path, self.assets, self.state_root, self.progress_message,
+                                         game_root=game, include_settings=selected),
+                 lambda result: self.finished(path, message), refresh_on_error=True)
 
     def restore(self):
         path = self.path.get().strip()
@@ -204,10 +242,10 @@ class InstallerApp:
 
     def finished(self, path, message):
         self.status.set(message)
-        self.run(lambda: backend.inspect(path, self.state_root), self.apply_status)
+        self.run(self.inspection(path), self.apply_status)
 
     def open_backups(self):
-        path = self.current_status.get('backup_directory')
+        path = self.current_status.get('backup_directory') or self.current_status.get('settings', {}).get('backup_directory')
         if path:
             try:
                 os.startfile(plain(path))
@@ -274,6 +312,8 @@ def main():
                 root.update_idletasks()
                 result['gui_runtime'] = str(root.tk.call('info', 'patchlevel'))
                 result['license_viewer'] = any(isinstance(widget, tk.Toplevel) for widget in root.winfo_children())
+                result['settings_default_selected'] = app.include_settings.get()
+                result['game_directory_control'] = bool(app.game_entry.winfo_exists())
                 app.close()
             else:
                 fonts = backend.bundled_fonts(args.assets)

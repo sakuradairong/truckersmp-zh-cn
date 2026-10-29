@@ -98,7 +98,7 @@ void CheckPair(const Pair& pair,unsigned kind) {
 void FillGuards(unsigned char* image) {
     auto* dos=reinterpret_cast<IMAGE_DOS_HEADER*>(image);dos->e_magic=IMAGE_DOS_SIGNATURE;dos->e_lfanew=0x80;
     auto* nt=reinterpret_cast<IMAGE_NT_HEADERS64*>(image+0x80);nt->Signature=IMAGE_NT_SIGNATURE;
-    nt->FileHeader.Machine=IMAGE_FILE_MACHINE_AMD64;nt->OptionalHeader.SizeOfImage=kImageSize;
+    nt->FileHeader.Machine=IMAGE_FILE_MACHINE_AMD64;nt->OptionalHeader.Magic=IMAGE_NT_OPTIONAL_HDR64_MAGIC;nt->OptionalHeader.SizeOfImage=kImageSize;
     for(const auto& g:kGuards)std::memcpy(image+g.rva,g.bytes,g.size);
     *reinterpret_cast<void**>(image+kComboVtable+0x10)=image+0x13e860;
     *reinterpret_cast<void**>(image+kLabelVtable+0x558)=image+0x336bc0;
@@ -217,6 +217,10 @@ int Run(int argc,char** argv) {
     core=static_cast<unsigned char*>(VirtualAlloc(nullptr,kImageSize,MEM_RESERVE|MEM_COMMIT,PAGE_READWRITE));
     Check(core!=nullptr,"fake image allocation");
     Check(!VerifyImage(),"unknown image disabled");FillGuards(core);Check(VerifyImage(),"reviewed code and structure guard accepted");
+    auto* imageHeader=reinterpret_cast<IMAGE_NT_HEADERS64*>(core+reinterpret_cast<IMAGE_DOS_HEADER*>(core)->e_lfanew);
+    imageHeader->OptionalHeader.SizeOfImage=kImageSize+0x1000;Check(VerifyImage(),"unrelated image size change accepted");
+    imageHeader->OptionalHeader.SizeOfImage=0x1000;Check(!VerifyImage(),"guard outside image refused");
+    imageHeader->OptionalHeader.SizeOfImage=kImageSize;
     core[kGuards[0].rva]^=1;Check(!VerifyImage(),"modified loaded code disabled");core[kGuards[0].rva]^=1;
     const auto pin=*reinterpret_cast<void**>(core+kComboVtable+0x10);
     *reinterpret_cast<void**>(core+kComboVtable+0x10)=nullptr;Check(!VerifyImage(),"wrong native vtable disabled");

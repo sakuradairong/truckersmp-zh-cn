@@ -1,8 +1,6 @@
 {
   "schema": 1,
   "version": "0.1.0-offline.1",
-  "core_sha256": "98033a4939575cd5c961ea052b7f831a7313bd40390f400d222b866bc48890ce",
-  "native_version": "0.7.9.2",
   "window": ["Settings", "设置"],
   "buttons": [["Cancel", "取消"], ["Set defaults", "恢复默认"], ["Apply", "应用"], ["OK", "确定"]],
   "layout": {"font": "OpenSans.ttf", "font_size": 14, "label_width": 295, "row_height": 20, "row_step": 30},

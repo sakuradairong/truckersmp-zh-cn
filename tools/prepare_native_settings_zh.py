@@ -1,4 +1,4 @@
-"""Generate a native-only profile from the pinned client; never modifies installed files."""
+"""Generate a native-only profile after checking the required Settings code and ABI."""
 from __future__ import annotations
 import argparse
 import collections
@@ -16,7 +16,6 @@ from capstone.x86_const import X86_REG_RDX, X86_REG_RIP
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / 'build/native-settings-zh'
 CORE = None
-HASH = '98033a4939575cd5c961ea052b7f831a7313bd40390f400d222b866bc48890ce'
 HOOKS = [('window', 0x13d110), ('page', 0x13de20), ('label', 0x13e130),
          ('combo', 0x13e860), ('cstring', 0xf0310), ('string', 0xef4f0),
          ('convert', 0xf0210), ('show', 0x13da10)]
@@ -38,18 +37,19 @@ def main():
     parser.add_argument('--output', type=Path, default=OUT)
     args = parser.parse_args()
     CORE, OUT = args.core.absolute(), args.output.absolute()
-    from common import plain
+    from common import plain, read_json
+    from settings_compatibility import check_bytes
     plain(CORE); plain(OUT, missing=True)
     require(not OUT.is_relative_to(CORE.parent), 'Build output cannot be inside the TMP installation')
     data = CORE.read_bytes()
-    require(hashlib.sha256(data).hexdigest() == HASH, 'Unknown TMP client')
+    check_bytes(data, read_json(ROOT / 'profiles/settings-abi.json'))
     p = pefile.PE(data=data)
     base = p.OPTIONAL_HEADER.ImageBase
     m = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_64)
     m.detail = True
     catalog_bytes = (ROOT / 'profiles/settings-zh-cn.json').read_bytes()
     catalog = json.loads(catalog_bytes)
-    require(catalog['core_sha256'] == HASH, 'Catalog build differs')
+    require(catalog['schema'] == 1 and len(catalog['pages']) == 5, 'Unknown Settings catalog schema')
     expected = collections.Counter()
     wanted = dict(catalog['buttons'])
     for pair in catalog['buttons']:
@@ -122,10 +122,9 @@ def main():
         require(not any(g['rva'] <= r < g['rva']+len(bytes.fromhex(g['bytes'])) for r in relocations),
                 'ASLR relocation inside code guard')
 
-    lines = ['// Generated from one reviewed client. No automatic compatibility fallback.',
+    lines = ['// Generated after checking the Settings code and ABI; no client release whitelist.',
              '#pragma once', 'namespace settingszh {',
-             f'inline constexpr char kCoreHash[] = "{HASH}";',
-             'inline constexpr unsigned kImageSize = 0x1818000;',
+             f'inline constexpr unsigned kImageSize = 0x{p.OPTIONAL_HEADER.SizeOfImage:x};',
              'inline constexpr unsigned kComboVtable = 0xdd8330;',
              'inline constexpr unsigned kLabelVtable = 0xdf2450;',
              'struct Pair { const char* en; const wchar_t* zh; };',
@@ -175,7 +174,7 @@ def main():
     lines += ['};', '}']
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / 'settings_profile.h').write_text('\n'.join(lines)+'\n', encoding='utf-8')
-    report = dict(schema=1, core_sha256=HASH, catalog_sha256=hashlib.sha256(catalog_bytes).hexdigest(),
+    report = dict(schema=1, core_sha256=hashlib.sha256(data).hexdigest(), catalog_sha256=hashlib.sha256(catalog_bytes).hexdigest(),
                   hook_rvas=dict(HOOKS), static_caption_occurrences=len(evidence),
                   labels=sum(len(pg['rows']) for pg in catalog['pages']),
                   tooltips=sum('tooltip' in row for pg in catalog['pages'] for row in pg['rows']),

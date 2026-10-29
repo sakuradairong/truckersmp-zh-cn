@@ -9,6 +9,8 @@ FILES = {
     '.gitignore', '.gitattributes', 'README.md', 'LICENSE',
     'THIRD_PARTY_NOTICES.md', 'requirements-build.txt', 'build-settings-zh.ps1',
     'profiles/settings-zh-cn.json', 'profiles/resource-edits.json', 'profiles/freight-zh-cn.json',
+    'profiles/settings-abi.json', 'tools/settings_compatibility.py', 'tools/installer_settings.py',
+    'tools/prepare_installer_settings.py', 'tests/test_installer_settings.py',
     'src/settings_zh.cpp', 'src/settings_zh.def', 'tests/native_settings_zh_test.cpp',
     'tests/native_settings_package_test.py', 'tests/test_resources.py', 'tests/test_resource_transactions.py',
     'tools/archive.py', 'tools/common.py', 'tools/font_cmap.py', 'tools/check_characters.py',
