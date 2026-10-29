@@ -1,0 +1,50 @@
+# 安装器字体
+
+安装器自带开源中文字体，安装过程中无需下载字体，也不安装到 Windows 系统字体目录。
+字体只作为 TMP 的本地覆盖资源使用。项目的 MIT 许可证不替代字体的 SIL OFL 1.1。
+
+| TMP 用途 | 安装字体 | 处理 |
+| --- | --- | --- |
+| OpenSans 常规、原生控件 | TMPZH Sans Regular | Noto Sans SC 静态 400 字重 |
+| OpenSans-Semibold | TMPZH Sans SemiBold | Noto Sans SC 静态 600 字重 |
+| RobotoMono | TMPZH Mono Regular | Noto Sans Mono 的拉丁等宽字符，加 Noto Sans SC 中文回退 |
+| 货运 17 处静态文案 | OfflineFreightZH | 从常规字体派生，仅在专用字体中重映射安全 ASCII 码位 |
+
+普通字体不修改 ASCII 含义。货运专用字体仅用于已核查的静态控件；玩家姓名、动态货物和地名不套用该编码。
+常规和半粗体为比例字体；等宽版本的 ASCII 字符等宽，中文保留全角宽度，不承诺所有文字体系等宽。
+
+## 固定来源
+
+两份字体都来自 [Google Fonts](https://github.com/google/fonts)，固定仓库提交为
+`a85815a42757630ce188fdad368c2dfc444d4773`。构建元数据见 `profiles/font-sources.json`。
+
+| 输入 | 字节数 | SHA-256 |
+| --- | ---: | --- |
+| NotoSansSC[wght].ttf | 17,772,300 | `a3041811a78c361b1de50f953c805e0244951c21c5bd412f7232ef0d899af0da` |
+| NotoSansMono[wdth,wght].ttf | 1,708,408 | `2cb2adb378a8f574213e23df697050b83c54c27df465a2015552740b2769a081` |
+
+使用固定的 FontTools 4.68.0 实例化可变轴、派生名称及合并回退字体。成品是独立静态 TrueType 字体，不依赖游戏的可变字体支持。
+使用 ttfautohint-py 0.6.1 固定 TrueType 微调指令，避免 ASCII 映射改变 FreeType 对中文的自动脚本分类和小字号栅格结果。
+等宽成品设置静态 fixed-pitch 标记，避免字体表中相同的 ASCII 字宽在小字号下出现不同推进宽度。
+不使用 `Source` 等保留字体名作为派生字体的名称；源版权声明和许可记录保留，完整 OFL 文本随 EXE 和 ZIP 提供。
+
+## 离线检查
+
+`tools/prepare_installer_fonts.py` 对三份成品分别检查：
+
+- 全部汉化字符在 Unicode cmap 中有有效字形。
+- 11、14、18、21px 四个字号下字形非空，UTF-16 往返不丢字符。
+- Settings 标题在 14px、295px 可用列宽内无溢出（Settings 不随安装器安装）。
+- 字重为 400 / 600，成品不含可变轴。
+- 等宽版本全部 95 个可打印 ASCII 字符的 hmtx 和 14px 实际渲染推进宽度一致。
+- 11、14、18、21px 下共 348 次货运原字形与映射字形严格对照通过，未跳过像素、边界或推进宽度检查。
+- 保留可用的补充平面字符；货运重映射按 Unicode 处理 cmap 4 / 12，并保留成品字体中已有的遗留编码与变体选择表。
+
+货运构建另做 348 次原字形与 ASCII 映射字形的逐像素、边界和推进宽度对照，防止专用映射变成乱码。
+构建产物含 `font-report.json` 和 `font-preview.png`。报告记录每份字体的成品哈希、字重、覆盖数量和栅格检查结果。
+字体报告中的覆盖数量仅说明字形存在，不代表支持所有汉字、emoji 或所有游戏字体回退行为。
+
+当前成品：常规和半粗体各覆盖 30,890 个码位；等宽与中文回退成品覆盖 33,591 个码位。
+三份字体各通过 369 个字符 × 四字号的 1,476 次栅格检查。14px Settings 标签最大宽度为 185px（等宽版本为 192px），均小于 295px。
+
+离线检查使用 Pillow/FreeType，不等于 TMP 的实际渲染验收。新字体在游戏中的字重、截断、玩家名显示和原生子窗口布局仍需实机核对。

@@ -6,9 +6,10 @@ import os
 from pathlib import Path
 import stat
 import subprocess
+import sys
 import uuid
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(getattr(sys, '_MEIPASS', Path(__file__).resolve().parents[1]))
 CORE_SHA = '98033a4939575cd5c961ea052b7f831a7313bd40390f400d222b866bc48890ce'
 UI_SHA = '455d1ec17ff6c6b04e2235b2aa048bafa73521471ba975729edd89136ef76551'
 CLIENT_SHA = '7418e39627ace5b7d593a98586ea6397157ad6c408e9039bbbc8fba0fc10b029'
@@ -29,6 +30,7 @@ def digest(path):
 
 
 def plain(path, missing=False):
+    require('..' not in Path(path).parts, 'Parent path segments refused')
     path = Path(path).absolute()
     for item in (path, *path.parents):
         try:
@@ -71,7 +73,8 @@ def write_output(path, data):
 def active_apps():
     require(os.name == 'nt', 'Installation is supported on Windows only')
     command = "@(Get-Process -Name eurotrucks2,amtrucks,TruckersMP,'TruckersMP-Launcher','TruckersMP Launcher' -ErrorAction SilentlyContinue) | ForEach-Object { $_.ProcessName + ':' + $_.Id }"
-    result = subprocess.run(['powershell.exe', '-NoProfile', '-NonInteractive', '-Command', command],
+    powershell = Path(os.environ.get('SystemRoot', 'C:/Windows')) / 'System32/WindowsPowerShell/v1.0/powershell.exe'
+    result = subprocess.run([str(powershell), '-NoProfile', '-NonInteractive', '-Command', command],
                             capture_output=True, text=True, timeout=20,
                             creationflags=subprocess.CREATE_NO_WINDOW)
     require(result.returncode == 0, 'Could not check game/TMP processes')

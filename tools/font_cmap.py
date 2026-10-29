@@ -1,4 +1,4 @@
-"""Local TrueType cmap transformations. No font data is bundled."""
+"""TrueType Unicode cmap transformations, preserving other cmap records."""
 import hashlib
 import struct
 MAGIC_SUM = 0xB1B0AFBA
@@ -57,17 +57,65 @@ def read_cmap4(data, offset):
                 result[cp] = glyph
     return result, language
 
-def unicode_cmaps(data):
+def cmap_records(data):
+    require(len(data) >= 4, "Truncated cmap directory")
     version, count = struct.unpack_from(">HH", data)
-    require(version == 0 and count > 0, "Invalid cmap directory")
+    require(version == 0 and count > 0 and 4 + count * 8 <= len(data), "Invalid cmap directory")
     result = []
     for index in range(count):
         platform, encoding, offset = struct.unpack_from(">HHI", data, 4 + 8 * index)
-        require(platform == 0 or (platform == 3 and encoding in (1, 10)),
-                "This proof only supports this font's Unicode cmap tables")
-        mapping, language = read_cmap4(data, offset)
-        result.append((platform, encoding, mapping, language))
+        require(4 + count * 8 <= offset and offset + 4 <= len(data), "Invalid cmap offset")
+        fmt = struct.unpack_from('>H', data, offset)[0]
+        if fmt in (8, 10, 12, 13):
+            require(offset + 8 <= len(data), "Truncated long cmap")
+            length = struct.unpack_from('>I', data, offset + 4)[0]
+        elif fmt == 14:
+            require(offset + 6 <= len(data), "Truncated variation cmap")
+            length = struct.unpack_from('>I', data, offset + 2)[0]
+        else:
+            length = struct.unpack_from('>H', data, offset + 2)[0]
+        require(length >= 4 and offset + length <= len(data), "Truncated cmap subtable")
+        result.append((platform, encoding, fmt, data[offset:offset + length]))
     return result
+
+
+def read_cmap12(data):
+    require(len(data) >= 16, "Truncated format-12 cmap")
+    fmt, reserved, length, language, count = struct.unpack_from('>HHIII', data)
+    require(fmt == 12 and reserved == 0 and length == len(data) == 16 + 12 * count,
+            "Invalid format-12 cmap")
+    result, previous = {}, -1
+    for index in range(count):
+        start, end, glyph = struct.unpack_from('>III', data, 16 + 12 * index)
+        require(previous < start <= end < 0x110000 and glyph + end - start < 65536,
+                "Invalid format-12 range")
+        previous = end
+        result.update((cp, glyph + cp - start) for cp in range(start, end + 1) if glyph + cp - start)
+    return result, language
+
+
+def unicode_cmaps(data):
+    result = []
+    for platform, encoding, fmt, raw in cmap_records(data):
+        if not (platform == 0 or (platform == 3 and encoding in (1, 10))) or fmt == 14:
+            continue
+        require(fmt in (4, 12), "Unsupported Unicode cmap format: " + str(fmt))
+        mapping, language = read_cmap4(raw, 0) if fmt == 4 else read_cmap12(raw)
+        result.append((platform, encoding, mapping, language))
+    require(result, "Font has no supported Unicode cmap")
+    return result
+
+
+def cmap12_from(mapping, language):
+    groups = []
+    for cp, glyph in sorted(mapping.items()):
+        require(0 <= cp < 0x110000 and 0 < glyph < 65536, "Invalid Unicode mapping")
+        if groups and cp == groups[-1][1] + 1 and glyph == groups[-1][2] + cp - groups[-1][0]:
+            groups[-1][1] = cp
+        else:
+            groups.append([cp, cp, glyph])
+    return struct.pack('>HHIII', 12, 0, 16 + 12 * len(groups), language, len(groups)) + b''.join(
+        struct.pack('>III', *group) for group in groups)
 
 def cmap4_from(mapping, language):
     groups = []
@@ -100,12 +148,17 @@ def cmap4_from(mapping, language):
     return header + array(ends) + b"\0\0" + array(starts) + array(deltas) + array(ranges) + array(glyphs)
 
 def remapped_cmap(source, replacements):
-    records = unicode_cmaps(source)
+    # Validate the supported Unicode maps, while retaining legacy and variation tables byte-for-byte.
+    unicode_cmaps(source)
+    records = cmap_records(source)
     directory = bytearray(struct.pack(">HH", 0, len(records)))
     payload = bytearray()
-    for platform, encoding, mapping, language in records:
-        mapping.update(replacements)
-        subtable = cmap4_from(mapping, language)
+    for platform, encoding, fmt, raw in records:
+        subtable = raw
+        if (platform == 0 or (platform == 3 and encoding in (1, 10))) and fmt in (4, 12):
+            mapping, language = read_cmap4(raw, 0) if fmt == 4 else read_cmap12(raw)
+            mapping.update(replacements)
+            subtable = cmap4_from(mapping, language) if fmt == 4 else cmap12_from(mapping, language)
         directory.extend(struct.pack(">HHI", platform, encoding, 4 + 8 * len(records) + len(payload)))
         payload.extend(subtable)
     return bytes(directory + payload)

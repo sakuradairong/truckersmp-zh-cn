@@ -4,6 +4,7 @@ import argparse
 import io
 import json
 from pathlib import Path
+import struct
 from PIL import ImageFont
 import font_cmap as fonts
 from common import ROOT, atomic_json, digest, read_json, require
@@ -29,8 +30,11 @@ def validate(font_data):
     texts = phrases()
     characters = sorted({char for text in texts for char in text if ord(char) > 127})
     tables = fonts.tables_from(font_data)
+    require(b'fvar' not in tables and b'glyf' in tables and b'loca' in tables,
+            'Use a standalone static TrueType font with glyf outlines')
     maps = fonts.unicode_cmaps(tables[b'cmap'])
-    require(all(mapping.get(ord(char), 0) for _, _, mapping, _ in maps for char in characters),
+    glyph_count = struct.unpack_from('>H', tables[b'maxp'], 4)[0]
+    require(all(0 < mapping.get(ord(char), 0) < glyph_count for _, _, mapping, _ in maps for char in characters),
             'Supplied font is missing required Chinese characters')
     for text in texts:
         require(text.encode('utf-16-le').decode('utf-16-le') == text, 'UTF-16 round trip failed')
@@ -43,12 +47,13 @@ def validate(font_data):
     # Settings captions have a reviewed 295px column at 14px. Tooltips wrap independently.
     font = ImageFont.truetype(io.BytesIO(font_data), 14, layout_engine=ImageFont.Layout.BASIC)
     catalog = read_json(ROOT / 'profiles/settings-zh-cn.json')
-    overflow = [row['id'] for page in catalog['pages'] for row in page['rows']
-                if font.getlength(row['label'][1]) > catalog['layout']['label_width']]
+    widths = [(row['id'], font.getlength(row['label'][1])) for page in catalog['pages'] for row in page['rows']]
+    overflow = [name for name, width in widths if width > catalog['layout']['label_width']]
     require(not overflow, 'Settings label overflow: ' + ', '.join(overflow))
     return dict(passed=True, phrases=len(texts), unique_characters=len(characters),
                 glyph_rasters=checks, sizes=[11, 14, 18, 21], utf16_roundtrips=True,
-                settings_label_overflows=overflow, game_started=False,
+                settings_label_overflows=overflow, settings_label_max_width=max(width for _, width in widths),
+                settings_label_available_width=catalog['layout']['label_width'], game_started=False,
                 limits='Offline font metrics do not prove live game rendering or layout.')
 
 

@@ -142,13 +142,22 @@ def freight_candidate(source, translations, codebook):
     return result, captions
 
 
-def build(tmp_root, font_path, output):
+def build(tmp_root, font_path, output, *, semibold=None, mono=None):
     plain(tmp_root); plain(font_path)
     output = plain(output, missing=True)
     require(not output.is_relative_to(tmp_root.absolute()), 'Build output cannot be inside the TMP installation')
     originals = inputs(tmp_root)
     font_data = font_path.read_bytes()
     character_checks = check_characters.validate(font_data)
+    font_inputs = {font_path: font_data}
+    alias_fonts = {name: font_data for name in FONT_ALIASES}
+    for alias, path in (('fonts/OpenSans-Semibold.ttf', semibold), ('fonts/RobotoMono.ttf', mono)):
+        if path is not None:
+            plain(path)
+            content = Path(path).read_bytes()
+            check_characters.validate(content)
+            font_inputs[Path(path)] = content
+            alias_fonts[alias] = content
     translations = read_json(ROOT / 'profiles/freight-zh-cn.json')
     codebook = make_codebook(translations)
     remapped_font, raster_checks = remap_font(font_data, codebook)
@@ -159,12 +168,12 @@ def build(tmp_root, font_path, output):
     payload = (json.dumps(candidate, ensure_ascii=True, indent=2) + '\n').encode('ascii')
     client = archive.repack(client_source, 11, {9: payload})
     data = {'data/shared_mod/ui.mp': ui, 'data/shared_mod/client.mp': client}
-    data.update({f'data/shared_mod/{name}': font_data for name in FONT_ALIASES})
+    data.update({f'data/shared_mod/{name}': content for name, content in alias_fonts.items()})
     data.update({f'data/shared_mod/{name}': remapped_font for name in (FONT_NAME, 'fonts/' + FONT_NAME)})
     require(set(data) == set(OUTPUTS), 'Unexpected output file scope')
     # Re-read all installed inputs before writing only local build outputs.
     inputs(tmp_root)
-    require(font_path.read_bytes() == font_data, 'Font changed while building')
+    require(all(path.read_bytes() == content for path, content in font_inputs.items()), 'Font changed while building')
     for relative, content in data.items():
         write_output(output / 'files' / relative, content)
     manifest = dict(schema=1, package='truckersmp-zh-cn-resources', core_sha256=CORE_SHA,
@@ -207,12 +216,14 @@ def main():
     parser.add_argument('action', choices=('build', 'verify', 'install', 'restore'))
     parser.add_argument('--tmp-root', type=Path, required=True, help='TruckersMP installation directory')
     parser.add_argument('--font', type=Path, help='User-supplied TrueType font; required for build')
+    parser.add_argument('--semibold', type=Path, help='Optional separate semibold TrueType font')
+    parser.add_argument('--mono', type=Path, help='Optional Chinese font with monospaced Latin glyphs')
     parser.add_argument('--output', type=Path, default=ROOT / 'build/resources')
     args = parser.parse_args()
     args.tmp_root = args.tmp_root.absolute(); args.output = args.output.absolute()
     if args.action == 'build':
         require(args.font is not None, '--font is required for build')
-        result = build(args.tmp_root, args.font, args.output)
+        result = build(args.tmp_root, args.font, args.output, semibold=args.semibold, mono=args.mono)
     elif args.action == 'verify':
         result = dict(state='verified', files=len(verify(args.tmp_root, args.output)['files']))
     else:

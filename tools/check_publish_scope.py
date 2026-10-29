@@ -1,5 +1,6 @@
 """Fail if Git tracks anything outside the localization-only source allowlist."""
 from pathlib import Path
+import argparse
 import re
 import subprocess
 from common import ROOT, require
@@ -18,11 +19,23 @@ FILES = {
     'vendor/minhook/src/trampoline.c', 'vendor/minhook/src/trampoline.h',
     'vendor/minhook/src/hde/hde64.c', 'vendor/minhook/src/hde/hde64.h',
     'vendor/minhook/src/hde/pstdint.h', 'vendor/minhook/src/hde/table64.h',
+    'build-installer.ps1', 'requirements-installer.txt', 'docs/FONTS.md',
+    'profiles/font-sources.json', 'tools/prepare_installer_fonts.py',
+    'tools/installer_store.py', 'tools/installer_backend.py', 'tools/installer_gui.py',
+    'tools/installer_selftest.py', 'tools/package_installer.py',
+    'tests/test_font_cmap.py', 'tests/test_installer.py',
+    'licenses/NotoSansSC-OFL.txt', 'licenses/NotoSansMono-OFL.txt', 'licenses/Tcl-8.6.12.txt',
 }
 
 
 def main():
-    result = subprocess.run(['git', 'ls-files', '-z'], cwd=ROOT, capture_output=True, check=True)
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--working-tree', action='store_true')
+    args = parser.parse_args()
+    command = ['git', 'ls-files', '-z']
+    if args.working_tree:
+        command.extend(('--cached', '--others', '--exclude-standard'))
+    result = subprocess.run(command, cwd=ROOT, capture_output=True, check=True)
     paths = set(result.stdout.decode('utf-8').rstrip('\0').split('\0'))
     require(paths == FILES, 'Tracked file scope differs: ' + repr(sorted(paths ^ FILES)))
     secret = re.compile(r'(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{30,}|sk-[A-Za-z0-9]{24,})')
@@ -31,8 +44,8 @@ def main():
                  'vendor/' + 'tmp-sdk', 'ETS2LA' + 'PluginInput')
     size = 0
     for name in sorted(paths):
-        data = subprocess.run(['git', 'show', ':' + name], cwd=ROOT,
-                              capture_output=True, check=True).stdout
+        data = ((ROOT / name).read_bytes() if args.working_tree else
+                subprocess.run(['git', 'show', ':' + name], cwd=ROOT, capture_output=True, check=True).stdout)
         size += len(data)
         require(b'\0' not in data, 'Binary content in ' + name)
         text = data.decode('utf-8')
