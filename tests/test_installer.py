@@ -111,7 +111,7 @@ class Recovery(PrivateTree):
 
     def test_unknown_client_can_still_restore(self):
         self.install()
-        with patch.object(resources, 'inputs', side_effect=ValueError('Unsupported TMP input')):
+        with patch.object(resources, 'check_compatibility', side_effect=ValueError('Incompatible resource')):
             self.assertFalse(backend.inspect(self.tmp, self.state)['compatible'])
             self.assertEqual(self.store.restore()['state'], 'restored')
         self.assert_before()
@@ -200,14 +200,55 @@ class Recovery(PrivateTree):
         with self.assertRaisesRegex(ValueError, 'scope'):
             self.store.restore()
 
-    def test_upgrade_requires_restore_and_retains_older_backups(self):
+    def test_installer_version_alone_does_not_require_restore(self):
         self.install()
         older, _ = self.store.current()
-        with self.assertRaisesRegex(ValueError, 'before upgrading'):
-            self.install('fixture-2')
-        self.store.restore()
-        self.install('fixture-2')
+        self.assertEqual(self.install('fixture-2')['state'], 'already_installed')
+        self.assertEqual(self.store.current()[0], older)
+        self.store.restore(); self.assert_before()
+
+    def old_package_requires_rebuild(self, older):
+        def verify(tmp, output, **kwargs):
+            if output == older and 'font_paths' in kwargs:
+                raise ValueError('Unknown resource package')
+            return {'files': self.files}
+        return patch.object(resources, 'verify', side_effect=verify)
+
+    def test_upgrade_rebuilds_and_retains_the_first_restore_point(self):
+        self.install()
+        older, _ = self.store.current()
+        with self.old_package_requires_rebuild(older):
+            self.assertEqual(self.install('fixture-2')['state'], 'installed')
+        newer, receipt = self.store.current()
+        self.assertNotEqual(older, newer)
+        self.assertEqual(receipt['version'], 'fixture-2')
+        self.assertEqual({name: row['previous_sha256'] for name, row in receipt['files'].items()}, self.before)
         self.assertTrue((older / 'backups' / Store.backup_name(resources.OUTPUTS[1])).is_file())
+        self.store.restore(); self.assert_before()
+
+    def test_incompatible_upgrade_keeps_the_existing_installation(self):
+        self.install()
+        older, _ = self.store.current()
+        snapshot = {name: self.store.actual(name) for name in resources.OUTPUTS}
+        with self.old_package_requires_rebuild(older), patch.object(resources, 'build', side_effect=ValueError('Incompatible resource')):
+            with self.assertRaisesRegex(ValueError, 'Incompatible resource'):
+                self.install('fixture-2')
+        self.assertEqual(self.store.current()[0], older)
+        self.assertEqual(snapshot, {name: self.store.actual(name) for name in resources.OUTPUTS})
+
+    def test_interrupted_upgrade_restores_the_first_install_baseline(self):
+        self.install()
+        older, _ = self.store.current()
+        replace = os.replace
+        def power_loss(source, destination):
+            replace(source, destination)
+            if Path(destination).is_relative_to(self.tmp) and self.store.current()[1]['state'] == 'applying':
+                raise SystemExit('synthetic upgrade power loss')
+        with self.old_package_requires_rebuild(older), patch.object(installer_store.os, 'replace', side_effect=power_loss):
+            with self.assertRaises(SystemExit):
+                self.install('fixture-2')
+        self.assertEqual(self.store.status()['state'], 'applying')
+        self.store.restore(); self.assert_before()
 
     def test_concurrent_installer_is_refused(self):
         with self.store.lock():

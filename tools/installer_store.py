@@ -121,9 +121,12 @@ class Store:
                 require(previous['state'] == 'installed', 'An interrupted operation must be restored first')
                 require(all(self.actual(name) == row['installed_sha256'] for name, row in previous['files'].items()),
                         'Localization target changed; restore or resolve changes first')
-                require(previous.get('version') == version, 'Restore the previous version before upgrading')
-                resources.verify(self.tmp_root, package)
-                return dict(state='already_installed', files=len(resources.OUTPUTS))
+                try:
+                    resources.verify(self.tmp_root, package, font_paths=(font_regular, font_semibold, font_mono))
+                except (ValueError, OSError):
+                    pass  # Rebuild changed resources/fonts or an older package schema before touching targets.
+                else:
+                    return dict(state='already_installed', files=len(resources.OUTPUTS))
             transaction = uuid.uuid4().hex
             package = plain(self.directory / 'packages' / transaction, missing=True)
             package.mkdir(parents=True)
@@ -132,6 +135,9 @@ class Store:
                             semibold=Path(font_semibold), mono=Path(font_mono))
             manifest = resources.verify(self.tmp_root, package)
             closed(self.processes)
+            if previous is not None and previous['state'] == 'installed':
+                progress('新版文件已准备好，正在保留原始恢复点并更新汉化…')
+                self._restore(progress)
             backups = package / 'backups'
             backups.mkdir()
             rows = {}
@@ -161,7 +167,7 @@ class Store:
                     target = self.target(name)
                     os.replace(self.stage(target, transaction), target)
                     require(self.actual(name) == row['installed_sha256'], 'Installed resource hash differs')
-                resources.inputs(self.tmp_root)
+                resources.verify(self.tmp_root, package)
                 require(all(self.actual(name) == row['installed_sha256'] for name, row in rows.items()),
                         'Localization target changed after installation')
                 atomic_json(package / 'receipt.json', dict(receipt, state='installed'))

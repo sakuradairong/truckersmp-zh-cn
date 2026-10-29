@@ -82,7 +82,7 @@ class InstallerApp:
                   style='Sub.TLabel').pack(anchor='w')
         bottom = ttk.Frame(footer)
         bottom.pack(fill='x', pady=(5, 0))
-        ttk.Label(bottom, text='适配 TMP 0.7.9.2 / ETS2 / Windows x64  ·  ' + backend.VERSION,
+        ttk.Label(bottom, text='ETS2 / Windows x64 · 自动检查界面资源兼容性 · ' + backend.VERSION,
                   style='Sub.TLabel').pack(side='left')
         ttk.Button(bottom, text='字体与许可', command=self.licenses).pack(side='right')
         root.protocol('WM_DELETE_WINDOW', self.close)
@@ -159,7 +159,7 @@ class InstallerApp:
         path, status = found
         self.path.set(path)
         self.apply_status(status)
-        self.status.set('检查完成。' if status['compatible'] else '此客户端暂不受支持，安装按钮已停用。')
+        self.status.set('界面资源检查完成。' if status['compatible'] else '所需界面资源无法识别，安装按钮已停用。')
 
     def browse(self):
         path = filedialog.askdirectory(parent=self.root, title='选择 TMP 安装目录（不是 ETS2 游戏目录）', mustexist=True)
@@ -182,9 +182,11 @@ class InstallerApp:
         labels = {'not_installed': '尚未通过本安装器安装汉化', 'installed': '汉化已安装，可恢复安装前状态',
                   'restored': '已恢复安装前状态，备份仍保留', 'changed': '检测到文件变化，请保留文件并核对后再操作',
                   'applying': '上次安装中断，请先恢复安装前状态', 'restoring': '上次恢复中断，请继续恢复'}
-        prefix = '已识别受支持的 TMP 0.7.9.2。' if status['compatible'] else '客户端文件不匹配，暂不支持安装。'
-        self.state_text.set(prefix + labels[status['state']])
-        self.install_button.configure(state='normal' if status['compatible'] and status['state'] in ('not_installed', 'restored') else 'disabled')
+        prefix = '所需界面资源兼容。' if status['compatible'] else '所需界面资源无法识别。'
+        detail = '\n' + backend.friendly_error(ValueError(status['detail'])) if not status['compatible'] and status.get('detail') else ''
+        self.state_text.set(prefix + labels[status['state']] + detail)
+        self.install_button.configure(text='更新 / 检查汉化' if status['state'] == 'installed' else '安装汉化',
+                                      state='normal' if status['compatible'] and status['state'] in ('not_installed', 'restored', 'installed') else 'disabled')
         self.restore_button.configure(state='normal' if status['can_restore'] else 'disabled')
         self.backup_button.configure(state='normal' if status.get('backup_directory') else 'disabled')
 

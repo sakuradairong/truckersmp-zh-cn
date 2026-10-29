@@ -1,4 +1,4 @@
-"""Build resource localization from a user's own pinned TMP files and font."""
+"""Build resource localization from compatible local TMP resources and a font."""
 from __future__ import annotations
 import argparse
 import copy
@@ -10,66 +10,81 @@ from PIL import ImageFont
 import archive
 import check_characters
 import font_cmap as fonts
-from common import (ROOT, CORE_SHA, UI_SHA, CLIENT_SHA, atomic_json, digest, plain,
+import resource_text
+from common import (ROOT, atomic_json, digest, plain,
                     read_json, require, sha, write_output)
 
 FONT_NAME = 'OfflineFreightZH.ttf'
-INPUTS = {'core_ets2mp.dll': CORE_SHA, 'data/shared/ui.mp': UI_SHA, 'data/shared/client.mp': CLIENT_SHA}
+INPUTS = ('data/shared/ui.mp', 'data/shared/client.mp')
 FONT_ALIASES = ('OpenSans.ttf', 'fonts/OpenSans.ttf', 'fonts/OpenSans-Semibold.ttf', 'fonts/RobotoMono.ttf')
 OUTPUTS = ('data/shared_mod/ui.mp', 'data/shared_mod/client.mp',
            *(f'data/shared_mod/{name}' for name in (*FONT_ALIASES, FONT_NAME, 'fonts/' + FONT_NAME)))
 SOURCES = ('tools/resources.py', 'tools/archive.py', 'tools/font_cmap.py', 'tools/common.py',
            'tools/check_characters.py', 'profiles/resource-edits.json', 'profiles/freight-zh-cn.json',
-           'profiles/settings-zh-cn.json')
-UI_ENTRIES = {3, 4, 8, 10, 12, 13, 17}
+           'profiles/settings-zh-cn.json', 'tools/resource_text.py')
+UI_NAMES = {'player_panel.rml', 'player_list.rml', 'player_panel.rcss', 'player_context_menu.rml',
+            'bus_job_dispatcher.rml', 'bus_job_dispatcher.rcss', 'bus_job_dispatcher.lua'}
+FREIGHT_PATH = 0xc3895edbd485993e
+FREIGHT_TARGETS = (
+    ('GroupBox', '', 'Source'), ('Button', 'sourceMap', 'Display Map'),
+    ('GroupBox', '', 'Destination'), ('Button', 'targetMap', 'Display Map'),
+    ('GroupBox', '', 'Cargo'),
+    ('CheckBoxWithLabel', 'compatibleCargos', 'List only compatible cargos (between companies)'),
+    ('Button', 'randomCargo', 'Pick Random Cargo'), ('GroupBox', '', 'Trailer'),
+    ('Button', 'trailerPreview', 'Preview Trailer'),
+    ('CheckBoxWithLabel', 'ownedTrailer', 'Use current owned trailer'),
+    ('CheckBoxWithLabel', 'compatibleTrailers', 'List only trailers complying with the laws'),
+    ('CheckBoxWithLabel', 'remoteTrailer', "Copy player's trailer"),
+    ('Button', 'generate', 'Generate Job Offer'),
+    ('CheckBoxWithLabel', 'takeJob', 'Take the job immediately'),
+    ('CheckBoxWithLabel', 'navigateToCompany', 'Navigate to the company'),
+    ('GroupBox', '', 'Job Information'), ('GroupBox', '', 'Urgency'))
 
 
 def inputs(tmp_root):
     result = {}
-    for relative, expected in INPUTS.items():
+    for relative in INPUTS:
         path = plain(tmp_root / relative)
         data = path.read_bytes()
-        require(sha(data) == expected, 'Unsupported TMP input: ' + relative)
         result[relative] = data
     return result
 
 
 def apply_edits(raw, entry):
-    require(sha(raw) == entry['source_sha256'], 'Resource source differs: ' + entry['name'])
-    text = raw.decode('utf-8').replace('\r\n', '\n')
-    cursor, parts = 0, []
-    for edit in entry['edits']:
-        start, stop = edit['start'], edit['stop']
-        require(isinstance(start, int) and isinstance(stop, int) and cursor <= start <= stop <= len(text),
-                'Unordered or invalid translation edit')
-        parts.extend((text[cursor:start], edit['text']))
-        cursor = stop
-    parts.append(text[cursor:])
-    newline = entry.get('newline', 'lf')
-    require(newline in ('lf', 'crlf'), 'Unsupported resource line ending')
-    result_text = ''.join(parts)
-    if newline == 'crlf':
-        result_text = result_text.replace('\n', '\r\n')
-    result = result_text.encode('utf-8')
-    require(sha(result) == entry['result_sha256'], 'Translation result differs: ' + entry['name'])
-    return result
+    return resource_text.apply(raw, entry)
 
 
 def localized_ui(source):
     profile = read_json(ROOT / 'profiles/resource-edits.json')
-    require(profile['schema'] == 1 and profile['core_sha256'] == CORE_SHA and
-            profile['ui_sha256'] == UI_SHA and profile['client_sha256'] == CLIENT_SHA,
-            'Resource profile identity differs')
+    require(profile['schema'] == 2, 'Unknown resource profile schema')
     entries = profile['ui_entries']
-    require(len(entries) == 7 and {entry['index'] for entry in entries} == UI_ENTRIES,
+    require(len(entries) == 7 and {entry['name'] for entry in entries} == UI_NAMES and
+            len({entry['path_hash'] for entry in entries}) == len(entries),
             'Unexpected UI translation scope')
-    rows = archive.parse(source, 21)
+    rows = archive.parse(source)
+    by_path = {row['path_hash']: row for row in rows}
     replacements = {}
     for entry in entries:
-        row = rows[entry['index']]
-        require(hex(row['path_hash']) == entry['path_hash'], 'Resource path hash differs')
-        replacements[entry['index']] = apply_edits(row['raw'], entry)
-    return archive.repack(source, 21, replacements)
+        row = by_path.get(int(entry['path_hash'], 16))
+        require(row is not None, 'Incompatible resource: missing ' + entry['name'])
+        replacements[row['index']] = apply_edits(row['raw'], entry)
+    return archive.repack(source, len(rows), replacements)
+
+
+def freight_row(source):
+    rows = archive.parse(source)
+    row = next((row for row in rows if row['path_hash'] == FREIGHT_PATH), None)
+    require(row is not None, 'Incompatible resource: missing freight window')
+    return rows, row
+
+
+def check_compatibility(tmp_root):
+    originals = inputs(tmp_root)
+    localized_ui(originals['data/shared/ui.mp'])
+    _, row = freight_row(originals['data/shared/client.mp'])
+    translations = read_json(ROOT / 'profiles/freight-zh-cn.json')
+    freight_candidate(json.loads(row['raw']), translations, make_codebook(translations))
+    return originals
 
 
 def make_codebook(translations):
@@ -118,17 +133,30 @@ def remap_font(font_data, codebook):
 
 
 def freight_candidate(source, translations, codebook):
+    require(isinstance(source, dict) and isinstance(source.get('Controls'), dict),
+            'Incompatible freight: missing control tree')
     result = copy.deepcopy(source)
-    allowed, captions = set(), []
+    allowed, captions, found = set(), [], set()
+    named = {name: (kind, name, text) for kind, name, text in FREIGHT_TARGETS if name}
+    groups = {text: (kind, name, text) for kind, name, text in FREIGHT_TARGETS if not name}
 
     def visit(node, path):
+        require(isinstance(node, dict) and isinstance(node.get('Type'), str) and
+                isinstance(node.get('Properties', {}), dict) and isinstance(node.get('Children', []), list),
+                'Incompatible freight: invalid control structure')
         properties = node.get('Properties', {})
         kind = node['Type']
-        if kind in ('GroupBox', 'Button', 'CheckBoxWithLabel'):
+        name = properties.get('ControlName', '')
+        require(isinstance(name, str), 'Incompatible freight: invalid control name')
+        title = properties.get('Text')
+        target = named.get(name) if name else groups.get(title) if kind == 'GroupBox' and isinstance(title, str) else None
+        if target is not None:
+            require(target not in found and kind == target[0], 'Incompatible freight: ambiguous control ' + str(target))
+            found.add(target)
             key = 'CheckboxText' if kind == 'CheckBoxWithLabel' else 'Text'
-            english = properties[key]
-            require(english in translations, 'Unexpected freight caption: ' + english)
-            chinese = translations[english]
+            english = properties.get(key)
+            require(english == target[2], 'Incompatible freight caption: ' + str(english))
+            chinese = translations[target[2]]
             properties[key] = ''.join(codebook.get(char, char) for char in chinese)
             properties['Font'] = FONT_NAME
             allowed.update((path + ('Properties', key), path + ('Properties', 'Font')))
@@ -137,6 +165,8 @@ def freight_candidate(source, translations, codebook):
             visit(child, path + ('Children', index))
 
     visit(result['Controls'], ('Controls',))
+    require(found == set(FREIGHT_TARGETS),
+            'Incompatible freight: missing controls ' + repr(sorted(set(FREIGHT_TARGETS) - found)))
     require(len(captions) == 17 and len(allowed) == 34, 'Unexpected freight caption count')
     require(set(fonts.changes(source, result)) == allowed, 'Freight changes exceed static text/font fields')
     return result, captions
@@ -163,50 +193,61 @@ def build(tmp_root, font_path, output, *, semibold=None, mono=None):
     remapped_font, raster_checks = remap_font(font_data, codebook)
     ui = localized_ui(originals['data/shared/ui.mp'])
     client_source = originals['data/shared/client.mp']
-    source_tree = json.loads(archive.parse(client_source, 11)[9]['raw'])
+    client_rows, row = freight_row(client_source)
+    source_tree = json.loads(row['raw'])
     candidate, captions = freight_candidate(source_tree, translations, codebook)
     payload = (json.dumps(candidate, ensure_ascii=True, indent=2) + '\n').encode('ascii')
-    client = archive.repack(client_source, 11, {9: payload})
+    client = archive.repack(client_source, len(client_rows), {row['index']: payload})
     data = {'data/shared_mod/ui.mp': ui, 'data/shared_mod/client.mp': client}
     data.update({f'data/shared_mod/{name}': content for name, content in alias_fonts.items()})
     data.update({f'data/shared_mod/{name}': remapped_font for name in (FONT_NAME, 'fonts/' + FONT_NAME)})
     require(set(data) == set(OUTPUTS), 'Unexpected output file scope')
     # Re-read all installed inputs before writing only local build outputs.
-    inputs(tmp_root)
+    require(inputs(tmp_root) == originals, 'Resource input changed while building; retry with the client closed')
     require(all(path.read_bytes() == content for path, content in font_inputs.items()), 'Font changed while building')
     for relative, content in data.items():
         write_output(output / 'files' / relative, content)
-    manifest = dict(schema=1, package='truckersmp-zh-cn-resources', core_sha256=CORE_SHA,
-                    inputs=INPUTS, files={name: sha(content) for name, content in data.items()},
+    manifest = dict(schema=2, package='truckersmp-zh-cn-resources',
+                    inputs={name: sha(content) for name, content in originals.items()},
+                    files={name: sha(content) for name, content in data.items()},
                     source_files={name: digest(ROOT / name) for name in SOURCES},
                     character_checks=character_checks, freight_glyph_rasters=raster_checks,
                     freight_static_captions=captions, game_started=False,
                     live_validation='Public extraction verified offline; native Settings not verified in-game.')
     atomic_json(output / 'package.json', manifest)
     verify(tmp_root, output)
-    return dict(state='built', files=len(data), ui_entries=sorted(UI_ENTRIES), freight_captions=len(captions),
+    return dict(state='built', files=len(data), ui_entries=sorted(UI_NAMES), freight_captions=len(captions),
                 freight_glyph_rasters=raster_checks, character_checks=character_checks)
 
 
-def verify(tmp_root, output):
+def verify(tmp_root, output, *, font_paths=None):
     plain(output)
     manifest = read_json(output / 'package.json')
-    require(manifest['schema'] == 1 and manifest['package'] == 'truckersmp-zh-cn-resources' and
-            manifest['core_sha256'] == CORE_SHA and manifest['inputs'] == INPUTS, 'Unknown resource package')
+    require(manifest['schema'] == 2 and manifest['package'] == 'truckersmp-zh-cn-resources' and
+            set(manifest['inputs']) == set(INPUTS), 'Unknown resource package')
     require(set(manifest['files']) == set(OUTPUTS) and set(manifest['source_files']) == set(SOURCES),
             'Unexpected package scope')
     for relative, expected in manifest['files'].items():
         require(digest(plain(output / 'files' / relative)) == expected, 'Package file differs: ' + relative)
+    if font_paths is not None:
+        for alias, path in zip(('OpenSans.ttf', 'fonts/OpenSans-Semibold.ttf', 'fonts/RobotoMono.ttf'), font_paths):
+            require(digest(plain(Path(path))) == manifest['files']['data/shared_mod/' + alias],
+                    'Font input changed; rebuild the localization')
     for relative, expected in manifest['source_files'].items():
         require(digest(ROOT / relative) == expected, 'Source changed; rebuild: ' + relative)
     originals = inputs(tmp_root)
+    require(manifest['inputs'] == {name: sha(content) for name, content in originals.items()},
+            'Resource input changed; rebuild the localization for the current files')
     require((output / 'files/data/shared_mod/ui.mp').read_bytes() == localized_ui(originals['data/shared/ui.mp']),
             'UI output does not match the translation profile')
-    before, after = archive.verify(originals['data/shared/client.mp'],
-                                   (output / 'files/data/shared_mod/client.mp').read_bytes(), 11, {9})
+    client_source = originals['data/shared/client.mp']
+    rows, row = freight_row(client_source)
+    index = row['index']
+    before, after = archive.verify(client_source,
+                                   (output / 'files/data/shared_mod/client.mp').read_bytes(), len(rows), {index})
     translations = read_json(ROOT / 'profiles/freight-zh-cn.json')
-    expected, captions = freight_candidate(json.loads(before[9]['raw']), translations, make_codebook(translations))
-    require(json.loads(after[9]['raw']) == expected and manifest['freight_static_captions'] == captions,
+    expected, captions = freight_candidate(json.loads(before[index]['raw']), translations, make_codebook(translations))
+    require(json.loads(after[index]['raw']) == expected and manifest['freight_static_captions'] == captions,
             'Freight output differs beyond the intended text/font fields')
     return manifest
 

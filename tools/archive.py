@@ -10,10 +10,13 @@ from common import require
 ENTRY = struct.Struct('<QQIIII')
 
 
-def parse(data, count):
+def parse(data, count=None):
     require(32 <= len(data) <= 2_000_000, 'Archive size outside bounds')
     require(data[:12] == b'TMP#\x01\x00\x00\x00CITY', 'Unsupported resource format')
-    require(struct.unpack_from('<IQ', data, 12) == (count, 32), 'Unexpected resource table')
+    actual_count, table_offset = struct.unpack_from('<IQ', data, 12)
+    require(table_offset == 32 and 0 < actual_count <= 4096 and
+            (count is None or actual_count == count), 'Unexpected resource table')
+    count = actual_count
     end = 32 + count * ENTRY.size
     require(end <= len(data), 'Truncated resource table')
     rows, previous, total = [], -1, 0

@@ -61,13 +61,13 @@ def build(assets):
     licenses = work / 'runtime-licenses'
     collect_licenses(licenses)
     version_file = work / 'version-info.txt'
-    version_file.write_text("""VSVersionInfo(ffi=FixedFileInfo(filevers=(0,2,0,1), prodvers=(0,2,0,1),
+    version_file.write_text("""VSVersionInfo(ffi=FixedFileInfo(filevers=(0,2,0,2), prodvers=(0,2,0,2),
 mask=0x3f, flags=2, OS=0x40004, fileType=0x1, subtype=0x0, date=(0,0)), kids=[
 StringFileInfo([StringTable('040904b0', [
 StringStruct('FileDescription', 'TruckersMP Simplified Chinese installer'),
-StringStruct('FileVersion', '0.2.0-preview.1'),
+StringStruct('FileVersion', '0.2.0-preview.2'),
 StringStruct('ProductName', 'TruckersMP ZH-CN'),
-StringStruct('ProductVersion', '0.2.0-preview.1'),
+StringStruct('ProductVersion', '0.2.0-preview.2'),
 StringStruct('LegalCopyright', 'MIT; bundled fonts under SIL OFL 1.1')])]),
 VarFileInfo([VarStruct('Translation', [1033,1200])])])""", encoding='utf-8')
     executable_name = 'TruckersMP-ZH-CN-Setup-' + backend.VERSION
@@ -103,7 +103,8 @@ def package(executable, assets):
         '2. 双击同目录的安装器 EXE，确认识别到的 TMP 安装目录。\n'
         '3. 点击“安装汉化”，完成后正常从 TMP 启动器进入游戏。\n'
         '4. 如需撤销，重新运行安装器，点击“恢复安装前状态”。\n\n'
-        '当前适配 Windows x64 / ETS2 / TMP 0.7.9.2，文件不匹配时停止安装。\n'
+        'Windows x64 / ETS2；按界面资源和控件识别兼容性，不限定 TMP 版本或原始文件哈希。\n'
+        '已安装旧版汉化时，可直接点击“更新 / 检查汉化”，保留首次安装前的恢复点。\n'
         '包括 Tab、公交和货运静态文案；不安装实验性 Settings 模块。\n'
         '备份保存在 %LOCALAPPDATA%\\TruckersMPZH，删除下载的 EXE 不会删除备份。\n'
         '无需 Python、编译器、SDK、联网下载或用户自备字体。\n'

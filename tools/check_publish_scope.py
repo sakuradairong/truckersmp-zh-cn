@@ -12,7 +12,7 @@ FILES = {
     'src/settings_zh.cpp', 'src/settings_zh.def', 'tests/native_settings_zh_test.cpp',
     'tests/native_settings_package_test.py', 'tests/test_resources.py', 'tests/test_resource_transactions.py',
     'tools/archive.py', 'tools/common.py', 'tools/font_cmap.py', 'tools/check_characters.py',
-    'tools/resources.py', 'tools/resource_transaction.py', 'tools/prepare_native_settings_zh.py',
+    'tools/resources.py', 'tools/resource_text.py', 'tools/resource_transaction.py', 'tools/prepare_native_settings_zh.py',
     'tools/native_settings_package.py', 'tools/check_publish_scope.py',
     'vendor/minhook/LICENSE.txt', 'vendor/minhook/include/MinHook.h',
     'vendor/minhook/src/buffer.c', 'vendor/minhook/src/buffer.h', 'vendor/minhook/src/hook.c',

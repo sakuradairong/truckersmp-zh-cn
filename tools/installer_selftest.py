@@ -18,7 +18,7 @@ def run(directory, source=None, assets=None):
     require(not directory.is_relative_to(source) and not source.is_relative_to(directory), 'Self-test must be isolated')
     originals = resources.inputs(source)
     live_before = {name: digest(plain(source / name)) if (source / name).exists() else None
-                   for name in (*resources.INPUTS, *resources.OUTPUTS)}
+                   for name in ('core_ets2mp.dll', *resources.INPUTS, *resources.OUTPUTS)}
     fonts = backend.bundled_fonts(assets)
     directory.mkdir(parents=True)
     clone = directory / 'TMP 安装测试'

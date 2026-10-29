@@ -8,7 +8,7 @@ from common import ROOT, digest, plain, read_json, require
 from installer_store import Store, default_state_root
 import resources
 
-VERSION = '0.2.0-preview.1'
+VERSION = '0.2.0-preview.2'
 FONT_FILES = {'regular': 'TMPZHSans-Regular.ttf', 'semibold': 'TMPZHSans-SemiBold.ttf', 'mono': 'TMPZHMono-Regular.ttf'}
 LICENSE_FILES = {'NotoSansSC-OFL.txt', 'NotoSansMono-OFL.txt'}
 
@@ -55,7 +55,7 @@ def inspect(tmp_root, state_root=None):
     tmp_root = plain(Path(tmp_root).absolute())
     compatibility, detail = True, ''
     try:
-        resources.inputs(tmp_root)
+        resources.check_compatibility(tmp_root)
     except (ValueError, OSError) as exc:
         compatibility, detail = False, str(exc)
     store = Store(tmp_root, state_root)
@@ -76,9 +76,12 @@ def friendly_error(exc):
     text = str(exc)
     translations = (
         ('Exit the game and TMP launcher first', '请先正常退出 ETS2、ATS 和 TMP 启动器，再重试。'),
-        ('Unsupported TMP input', '此 TMP 客户端文件与当前支持版本不匹配，已停止安装。请等待适配更新。'),
+        ('Incompatible resource', '所需界面资源或控件无法识别，已停止安装。详情：' + text[:250]),
+        ('Incompatible freight', '所需货运控件无法识别，已停止安装。详情：' + text[:250]),
+        ('Resource input changed', '准备期间原始界面资源发生了变化，请关闭 TMP 启动器后重新安装。'),
+        ('Unsupported resource format', '界面资源格式无法识别，请确认所选目录是完整的 TMP 安装目录。'),
+        ('Unexpected resource table', '界面资源目录结构无法识别，请确认 TMP 客户端文件完整。'),
         ('Another installer is already running', '另一个安装器正在操作，请等待它完成。'),
-        ('Restore the previous version before upgrading', '请先恢复安装前状态，再安装新版汉化。'),
         ('interrupted operation', '上次安装未完成。请先点击“恢复安装前状态”。'),
         ('Installation interrupted', '安装中断，恢复备份已保留。请先恢复安装前状态，再启动游戏。'),
         ('Localization target changed', '汉化文件已被其他程序修改，为保护这些文件，操作已停止。'),
