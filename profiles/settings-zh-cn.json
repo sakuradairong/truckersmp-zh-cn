@@ -1,0 +1,94 @@
+{
+  "schema": 1,
+  "version": "0.1.0-offline.1",
+  "core_sha256": "98033a4939575cd5c961ea052b7f831a7313bd40390f400d222b866bc48890ce",
+  "native_version": "0.7.9.2",
+  "window": ["Settings", "设置"],
+  "buttons": [["Cancel", "取消"], ["Set defaults", "恢复默认"], ["Apply", "应用"], ["OK", "确定"]],
+  "layout": {"font": "OpenSans.ttf", "font_size": 14, "label_width": 295, "row_height": 20, "row_step": 30},
+  "pages": [
+    {
+      "id": "general", "title": ["General", "常规"], "builder_range": ["0x13a200", "0x13b1a0"],
+      "rows": [
+        {"id": "player_tag", "type": "text_color", "label": ["Player tag", "玩家标签"], "source_site": "0x150f1a"},
+        {"id": "steam_notifications", "type": "select", "label": ["Steam notifications position", "Steam 通知位置"], "source_site": "0x13a5c2", "options": [["Top-Left", "左上角"], ["Top-Right", "右上角"], ["Bottom-Left", "左下角"], ["Bottom-Right", "右下角"]]},
+        {"id": "discord_presence", "type": "checkbox", "label": ["Discord Rich Presence", "Discord 丰富状态"], "source_site": "0x13a6d3"},
+        {"id": "job_privacy", "type": "select", "label": ["Job sharing privacy", "任务共享隐私"], "source_site": "0x13a83d", "tooltip": ["Defines who you can share jobs with.", "决定你可以与哪些人共享任务。"], "options": [["Private", "仅自己"], ["Steam friends only", "仅 Steam 好友"], ["Public", "公开"]]},
+        {"id": "follow_privacy", "type": "select", "label": ["Player follow privacy", "玩家跟随隐私"], "source_site": "0x13aa4a", "tooltip": ["Defines who can follow you.", "决定哪些人可以跟随你。"], "options": [["Private", "仅自己"], ["Steam friends only", "仅 Steam 好友"], ["Public", "公开"]]},
+        {"id": "cb_channel", "type": "number", "label": ["Default CB Radio channel", "默认 CB 电台频道"], "source_site": "0x13ab43"},
+        {"id": "cb_extended", "type": "checkbox", "label": ["Extended CB Radio sounds", "扩展 CB 电台音效"], "source_site": "0x13ac3c"},
+        {"id": "display_group", "type": "checkbox", "label": ["Display group", "显示用户组"], "source_site": "0x13ad15", "tooltip": ["Display special group and its color.", "显示特殊用户组及其颜色。"]},
+        {"id": "logging", "type": "select", "label": ["Development logging", "开发日志"], "source_site": "0x13aec3", "tooltip": ["Allow your game to create log files and store locally.", "允许游戏创建日志文件并保存在本机。"], "options": [["Disabled", "关闭"], ["Basic", "基本"], ["Advanced", "详细"]]},
+        {"id": "crash_reports", "type": "checkbox", "label": ["Share crash reports and metrics data", "共享崩溃报告与统计数据"], "source_site": "0x13afbd"},
+        {"id": "usage_client_id", "type": "checkbox", "label": ["Include my client ID in usage statistics", "使用统计中包含我的客户端 ID"], "source_site": "0x13b0a4", "tooltip": ["Disabling this fully anonymizes usage statistics.", "关闭后，使用统计将完全匿名。"]}
+      ]
+    },
+    {
+      "id": "sound", "title": ["Sound", "声音"], "builder_range": ["0x13b1a0", "0x13b8c0"],
+      "rows": [
+        {"id": "speaker", "type": "device", "label": ["Speaker device", "音频输出设备"], "source_site": "0x151200"},
+        {"id": "voice_volume", "type": "slider", "label": ["Voice volume", "语音音量"], "source_site": "0x13b39d"},
+        {"id": "engine_type", "type": "select", "label": ["Engine sound type", "引擎音效类型"], "source_site": "0x13b55b", "tooltip": ["Custom engine sounds correspond to the truck engine. However, they come with sound issues.", "自定义引擎音效与卡车引擎匹配，但可能存在声音问题。"], "options": [["Game traffic (supported)", "游戏交通音效（受支持）"], ["Custom engine sounds", "自定义引擎音效"]]},
+        {"id": "horn", "type": "checkbox", "label": ["Horn sounds", "喇叭音效"], "source_site": "0x13b64d"},
+        {"id": "reverse", "type": "checkbox", "label": ["Reversing sounds", "倒车音效"], "source_site": "0x13b709"},
+        {"id": "lift_axle", "type": "checkbox", "label": ["Lift axle sounds", "提升桥音效"], "source_site": "0x13b74b"},
+        {"id": "microphone", "type": "device", "label": ["Microphone device", "麦克风设备"], "source_site": "0x1513d0"},
+        {"id": "microphone_volume", "type": "slider", "label": ["Microphone volume", "麦克风音量"], "source_site": "0x13b7d9"}
+      ]
+    },
+    {
+      "id": "game", "title": ["Game", "游戏"], "builder_range": ["0x13b8c0", "0x13c2a0"],
+      "rows": [
+        {"id": "player_color", "type": "color", "label": ["Player color", "玩家颜色"], "source_site": "0x13b9bc"},
+        {"id": "friend_color", "type": "color", "label": ["Friend color", "好友颜色"], "source_site": "0x13ba1b"},
+        {"id": "company_color", "type": "color", "label": ["Company member color", "车队成员颜色"], "source_site": "0x13ba7a"},
+        {"id": "selected_color", "type": "color", "label": ["Selected player color", "选中玩家颜色"], "source_site": "0x13bad9"},
+        {"id": "map_players", "type": "group", "label": ["Show players on the world map", "在世界地图上显示玩家"], "source_site": "0x13bc64"},
+        {"id": "map_color_priority", "type": "select", "label": ["Player color priority on the world map", "世界地图玩家颜色优先级"], "source_site": "0x13be1e", "options": [["Steam friends", "Steam 好友"], ["Company members", "车队成员"]]},
+        {"id": "weather", "type": "checkbox", "label": ["Enable weather synchronization", "启用天气同步"], "source_site": "0x13bf16", "tooltip": ["Enables raining/snowing. The rest of the environment remains synchronized.", "启用降雨或降雪，其余环境仍保持同步。"]},
+        {"id": "cabin", "type": "checkbox", "label": ["Load cabin accessories", "加载驾驶室饰品"], "source_site": "0x13bff8", "tooltip": ["Change applies on newly spawned vehicles.", "更改将应用于新生成的车辆。"]},
+        {"id": "flags", "type": "checkbox", "label": ["Load flags", "加载旗帜"], "source_site": "0x13c0ce", "tooltip": ["Change applies on newly spawned vehicles.", "更改将应用于新生成的车辆。"]},
+        {"id": "bus_announcements", "type": "checkbox", "label": ["Enable voice announcements", "启用语音播报"], "source_site": "0x13c1a7", "tooltip": ["Enable voice commands in buses.", "启用公交车语音提示。"]}
+      ]
+    },
+    {
+      "id": "graphics", "title": ["Graphics", "图形"], "builder_range": ["0x13c2a0", "0x13c5b0"],
+      "rows": [
+        {"id": "draw_distance", "type": "select", "label": ["Draw distance", "车辆显示距离"], "source_site": "0x1515d0", "tooltip": ["Set the draw distance of other vehicles.", "设置其他车辆的显示距离。"], "options": [["Very Low", "很低"], ["Low", "低"], ["Medium", "中等"], ["High", "高"], ["Ultra", "极高"]]},
+        {"id": "optimize_distance", "type": "checkbox", "label": ["Optimize draw distance", "自动优化显示距离"], "source_site": "0x151780", "tooltip": ["Lower the draw distance automatically with a lot of players around. Improves performance.", "周围玩家较多时自动降低显示距离，以提升性能。"]},
+        {"id": "dynamic_shadows", "type": "checkbox", "label": ["Dynamic shadows", "动态阴影"], "source_site": "0x151920", "tooltip": ["Enable realistic shadows.", "启用真实阴影。"]},
+        {"id": "fake_shadows", "type": "checkbox", "label": ["Fake shadows", "简化阴影"], "source_site": "0x151ac0", "tooltip": ["Static shadows under vehicles.", "车辆下方的静态阴影。"]},
+        {"id": "drivers", "type": "checkbox", "label": ["Draw drivers", "显示驾驶员"], "source_site": "0x151c60", "tooltip": ["Show other users' drivers in their truck cabs.", "显示其他玩家驾驶室内的驾驶员。"]},
+        {"id": "driver_animation", "type": "checkbox", "label": ["Drivers animation", "驾驶员动画"], "source_site": "0x151e00", "tooltip": ["Enable driver steering animation.", "启用驾驶员转动方向盘的动画。"]},
+        {"id": "additional_lights", "type": "checkbox", "label": ["Additional lights", "附加灯光"], "source_site": "0x151fa0", "tooltip": ["Show beacons on other vehicles.", "显示其他车辆的警示灯。"]}
+      ]
+    },
+    {
+      "id": "interface", "title": ["Interface", "界面"], "builder_range": ["0x13c5b0", "0x13cb20"],
+      "rows": [
+        {"id": "opacity", "type": "slider", "label": ["Windows opacity", "窗口不透明度"], "source_site": "0x152140"},
+        {"id": "hud_scale", "type": "slider", "label": ["HUD scale", "HUD 缩放"], "source_site": "0x152300", "tooltip": ["Adjusts the size of new HUD elements.", "调整新版 HUD 元素的大小。"]},
+        {"id": "hud_position", "type": "select", "label": ["HUD position", "HUD 位置"], "source_site": "0x1524c0", "tooltip": ["Preferred position of HUD elements on the screen.", "选择 HUD 元素在屏幕上的优先显示位置。"], "options": [["Automatic", "自动"], ["Left", "左侧"], ["Right", "右侧"]]},
+        {"id": "open_panel", "type": "checkbox", "label": ["Automatically open Player Panel", "自动打开玩家面板"], "source_site": "0x152670", "tooltip": ["Opens Player Panel on successful connection.", "连接成功后打开玩家面板。"]},
+        {"id": "save_panel", "type": "checkbox", "label": ["Save Player Panel's customization", "保存玩家面板自定义设置"], "source_site": "0x152810", "tooltip": ["Position, size, and player sorting.", "包括位置、大小和玩家排序。"]},
+        {"id": "save_radio", "type": "checkbox", "label": ["Save position and size of the radio box", "保存电台窗口的位置和大小"], "source_site": "0x1529b0", "tooltip": ["Requires restart of the game", "需要重启游戏。"]},
+        {"id": "timestamps", "type": "checkbox", "label": ["Show timestamp of chat messages", "显示聊天消息时间"], "source_site": "0x152b50"},
+        {"id": "mention_id", "type": "checkbox", "label": ["Show player's ID for chat mentions", "聊天提及时显示玩家 ID"], "source_site": "0x152cf0"},
+        {"id": "retain_input", "type": "checkbox", "label": ["Retain the chat input text", "保留聊天输入内容"], "source_site": "0x152e90"},
+        {"id": "chat_mouse", "type": "select", "label": ["Chat mouse input mode", "聊天鼠标输入模式"], "source_site": "0x153030", "tooltip": ["Defines the behavior of mouse input.", "设置鼠标输入的响应方式。"], "options": [["Disabled", "关闭"], ["Enabled", "开启"], ["Enabled on mouse right button", "按鼠标右键时开启"]]},
+        {"id": "speaking", "type": "checkbox", "label": ["Show speaking players", "显示正在说话的玩家"], "source_site": "0x13c9bb"},
+        {"id": "nametag_scale", "type": "checkbox", "label": ["Scale nametags", "缩放玩家名牌"], "source_site": "0x1531e0"},
+        {"id": "trailer_nametag", "type": "checkbox", "label": ["Force trailer nametags", "始终显示挂车名牌"], "source_site": "0x153380", "tooltip": ["Display player's nametag above the trailer when it is connected.", "连接挂车后，在挂车上方显示玩家名牌。"]},
+        {"id": "tmp_id", "type": "checkbox", "label": ["Show player's TruckersMP ID", "显示玩家 TruckersMP ID"], "source_site": "0x153520", "tooltip": ["Display the TruckersMP ID next to the nametag of other players.", "在其他玩家名牌旁显示其 TruckersMP ID。"]},
+        {"id": "ping", "type": "checkbox", "label": ["Show player's ping", "显示玩家延迟"], "source_site": "0x1536c0", "tooltip": ["Display the player's ping in their nametag.", "在玩家名牌中显示其延迟。"]},
+        {"id": "speed_limit_notice", "type": "checkbox", "label": ["Notify me about speed limit changes", "限速变化时通知我"], "source_site": "0x153860", "tooltip": ["This notification pops up only in city areas", "此通知只在城市区域弹出。"]}
+      ]
+    }
+  ],
+  "limitations": [
+    "This is an offline presentation model, not a native hook, SDK plugin, installer, or live-game validation.",
+    "All control IDs and values are demo data; native binding IDs, enum values, device names and conditional visibility are not reconstructed.",
+    "The Game map-player group hierarchy and some widget types require live observation; their captions are included but the preview arrangement is provisional.",
+    "Only the five requested tabs are covered. Staff, Input and Mods are outside scope."
+  ]
+}

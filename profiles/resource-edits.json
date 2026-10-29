@@ -1,0 +1,1043 @@
+{
+  "schema": 1,
+  "core_sha256": "98033a4939575cd5c961ea052b7f831a7313bd40390f400d222b866bc48890ce",
+  "ui_sha256": "455d1ec17ff6c6b04e2235b2aa048bafa73521471ba975729edd89136ef76551",
+  "client_sha256": "7418e39627ace5b7d593a98586ea6397157ad6c408e9039bbbc8fba0fc10b029",
+  "ui_entries": [
+    {
+      "index": 3,
+      "name": "player_panel.rml",
+      "path_hash": "0x3e73ff2535fef0e0",
+      "source_sha256": "f8c477ccbd8ba3f7852414a72004fc7c8d512d3835b4623eaa05150c284d3d7d",
+      "result_sha256": "1a0714b77b5300f8235ea7edb3bc13363835e56e3dccf38449b1f9c737758a86",
+      "edits": [
+        {
+          "start": 32,
+          "stop": 44,
+          "text": "玩家面板"
+        },
+        {
+          "start": 672,
+          "stop": 684,
+          "text": "未连接"
+        },
+        {
+          "start": 826,
+          "stop": 826,
+          "text": ">\n                            <span class=\"count_label\">玩家</span"
+        },
+        {
+          "start": 1315,
+          "stop": 1321,
+          "text": "搜索玩家名称或"
+        },
+        {
+          "start": 1322,
+          "stop": 1332,
+          "text": "ID"
+        },
+        {
+          "start": 2299,
+          "stop": 2312,
+          "text": "返回附近"
+        },
+        {
+          "start": 2317,
+          "stop": 2324,
+          "text": "历史玩家"
+        },
+        {
+          "start": 2684,
+          "stop": 2684,
+          "text": "    <span>设置</span>\n                    "
+        },
+        {
+          "start": 2883,
+          "stop": 2883,
+          "text": ">\n                        <span>货运</span"
+        },
+        {
+          "start": 3163,
+          "stop": 3163,
+          "text": "    <span>公交</span>\n                    "
+        },
+        {
+          "start": 3370,
+          "stop": 3370,
+          "text": "    <span>物件</span>\n                    "
+        },
+        {
+          "start": 3552,
+          "stop": 3552,
+          "text": "    <span>电台</span>\n                    "
+        },
+        {
+          "start": 3638,
+          "stop": 3643,
+          "text": "右键启用鼠标"
+        },
+        {
+          "start": 3644,
+          "stop": 3649,
+          "text": "·"
+        },
+        {
+          "start": 3650,
+          "stop": 3679,
+          "text": "拖动右下角调整大小"
+        }
+      ],
+      "newline": "lf"
+    },
+    {
+      "index": 4,
+      "name": "player_list.rml",
+      "path_hash": "0x4448777c6752fb56",
+      "source_sha256": "bc476490d26a6f3a29ead2e80ec4bc486f2dc758e6ea0a2dee0a0462df998bf0",
+      "result_sha256": "2779b8617a20051f92dfb4aaa7157aa2c10f42daee4ad664bbc91167e4486e4d",
+      "edits": [
+        {
+          "start": 487,
+          "stop": 487,
+          "text": "343E49;\n                background-color: #1"
+        },
+        {
+          "start": 488,
+          "stop": 493,
+          "text": "1B20C8"
+        },
+        {
+          "start": 1031,
+          "stop": 1031,
+          "text": "    background-color: #252F38;\n                color: #B8C7D3;\n            "
+        },
+        {
+          "start": 1157,
+          "stop": 1157,
+          "text": "4"
+        },
+        {
+          "start": 1158,
+          "stop": 1159,
+          "text": ""
+        },
+        {
+          "start": 1229,
+          "stop": 1230,
+          "text": "8"
+        },
+        {
+          "start": 1304,
+          "stop": 1305,
+          "text": "6"
+        },
+        {
+          "start": 1488,
+          "stop": 1490,
+          "text": "12"
+        },
+        {
+          "start": 1685,
+          "stop": 1686,
+          "text": ""
+        },
+        {
+          "start": 1687,
+          "stop": 1687,
+          "text": "8"
+        },
+        {
+          "start": 1765,
+          "stop": 1766,
+          "text": "8"
+        },
+        {
+          "start": 1981,
+          "stop": 1981,
+          "text": "377C744C;\n                color: #E6FFFA;\n            }\n\n            #players tbody tr:not(.filler_top):not(.filler_bottom):hover {\n                background-color: #"
+        },
+        {
+          "start": 1987,
+          "stop": 1989,
+          "text": "16"
+        },
+        {
+          "start": 3049,
+          "stop": 3078,
+          "text": "尚未连接服务器"
+        },
+        {
+          "start": 3355,
+          "stop": 3355,
+          "text": "玩家"
+        },
+        {
+          "start": 3498,
+          "stop": 3502,
+          "text": "延迟"
+        },
+        {
+          "start": 3760,
+          "stop": 3768,
+          "text": "距离"
+        },
+        {
+          "start": 3855,
+          "stop": 3864,
+          "text": "最后出现"
+        },
+        {
+          "start": 6711,
+          "stop": 6715,
+          "text": "演示"
+        },
+        {
+          "start": 7002,
+          "stop": 7007,
+          "text": "本车"
+        }
+      ],
+      "newline": "lf"
+    },
+    {
+      "index": 8,
+      "name": "player_panel.rcss",
+      "path_hash": "0x6ae40b5297b03bf0",
+      "source_sha256": "e6739c53041348cc8983552406da32d4c938a86b035596443e6abef05ec32283",
+      "result_sha256": "3a529e25ef679ac98af79adb3824fdb1a66767af6d505e5f6bb02b8f8382cb3c",
+      "edits": [
+        {
+          "start": 19,
+          "stop": 20,
+          "text": "2"
+        },
+        {
+          "start": 37,
+          "stop": 39,
+          "text": "36"
+        },
+        {
+          "start": 60,
+          "stop": 61,
+          "text": "8"
+        },
+        {
+          "start": 83,
+          "stop": 84,
+          "text": "5"
+        },
+        {
+          "start": 104,
+          "stop": 105,
+          "text": "9"
+        },
+        {
+          "start": 127,
+          "stop": 129,
+          "text": "42"
+        },
+        {
+          "start": 177,
+          "stop": 177,
+          "text": "body {\n    background-color: #171D23F5;\n    color: #DFE7EE;\n}\n\n#"
+        },
+        {
+          "start": 208,
+          "stop": 209,
+          "text": "2"
+        },
+        {
+          "start": 271,
+          "stop": 273,
+          "text": "8"
+        },
+        {
+          "start": 303,
+          "stop": 307,
+          "text": ""
+        },
+        {
+          "start": 311,
+          "stop": 311,
+          "text": "dp 12dp 24"
+        },
+        {
+          "start": 467,
+          "stop": 469,
+          "text": "8"
+        },
+        {
+          "start": 521,
+          "stop": 522,
+          "text": "4"
+        },
+        {
+          "start": 524,
+          "stop": 524,
+          "text": ";\n    height: 26dp;\n    padding: 4dp 7dp;\n    font-size: .9em;\n    background-color: #2B3742;\n    color: #DAE5EC"
+        },
+        {
+          "start": 574,
+          "stop": 575,
+          "text": "3"
+        },
+        {
+          "start": 592,
+          "stop": 593,
+          "text": "3"
+        },
+        {
+          "start": 595,
+          "stop": 595,
+          "text": ";\n    margin-right: 4dp;\n    vertical-align: middle;\n}\n\n#contents__footer button > span {\n    vertical-align: middle;\n}\n\n#contents__footer button:hover {\n    background-color: #374A55;\n}\n\n#contents__footer button[disabled] {\n    background-color: #242B32;\n    color: #76818A"
+        },
+        {
+          "start": 733,
+          "stop": 734,
+          "text": "3"
+        },
+        {
+          "start": 736,
+          "stop": 736,
+          "text": ";\n    color: #79D2C5;\n}\n\n.count_label {\n    margin-right: 4dp;\n    color: #9BACBA;\n    font-weight: normal"
+        },
+        {
+          "start": 954,
+          "stop": 955,
+          "text": "5"
+        },
+        {
+          "start": 1087,
+          "stop": 1087,
+          "text": "    height: 26dp;\n}\n\n#toggle_history {\n    padding: 4dp 10dp;\n    font-size: .9em;\n    background-color: #29574F;\n    color: #DCFFF8;\n}\n\n#toggle_history:hover {\n    background-color: #357166;\n}\n\n#report_player {\n    background-color: #70404A;\n}\n\n#report_player[disabled] {\n    background-color: #37333A;\n"
+        },
+        {
+          "start": 1159,
+          "stop": 1161,
+          "text": "55"
+        },
+        {
+          "start": 1278,
+          "stop": 1278,
+          "text": "height: 26dp;\n    "
+        },
+        {
+          "start": 1287,
+          "stop": 1291,
+          "text": "4"
+        },
+        {
+          "start": 1295,
+          "stop": 1295,
+          "text": "5"
+        },
+        {
+          "start": 1298,
+          "stop": 1298,
+          "text": "4dp 7dp;\n    background-color: #1"
+        },
+        {
+          "start": 1299,
+          "stop": 1299,
+          "text": "171D;\n    color: #E4EEF4"
+        },
+        {
+          "start": 1325,
+          "stop": 1331,
+          "text": "526773"
+        },
+        {
+          "start": 1410,
+          "stop": 1410,
+          "text": "3A444D;\n}\n\n#search_players_input_container input:focus {\n    border-bottom: 1dp #7"
+        },
+        {
+          "start": 1411,
+          "stop": 1411,
+          "text": "D2"
+        },
+        {
+          "start": 1412,
+          "stop": 1416,
+          "text": "5"
+        },
+        {
+          "start": 1492,
+          "stop": 1493,
+          "text": "6dp"
+        },
+        {
+          "start": 1506,
+          "stop": 1507,
+          "text": "6dp"
+        },
+        {
+          "start": 1687,
+          "stop": 1687,
+          "text": "left: 12dp;\n    "
+        },
+        {
+          "start": 1694,
+          "stop": 1696,
+          "text": "20"
+        },
+        {
+          "start": 1716,
+          "stop": 1718,
+          "text": "8"
+        },
+        {
+          "start": 1735,
+          "stop": 1740,
+          "text": "3A5B2"
+        }
+      ],
+      "newline": "lf"
+    },
+    {
+      "index": 17,
+      "name": "player_context_menu.rml",
+      "path_hash": "0xe34c5cabec40078c",
+      "source_sha256": "0bbf3269e3647ffcc8c80ee7bd15fea854c80cb63429cdee84287fdebba98f73",
+      "result_sha256": "97af3670bbbc45cf84f105e2baa498c67b54235bb2d8f36e3055e0bec1dc46f0",
+      "edits": [
+        {
+          "start": 32,
+          "stop": 51,
+          "text": "玩家操作"
+        },
+        {
+          "start": 551,
+          "stop": 555,
+          "text": "查看"
+        },
+        {
+          "start": 562,
+          "stop": 569,
+          "text": "资料"
+        },
+        {
+          "start": 773,
+          "stop": 777,
+          "text": "查看"
+        },
+        {
+          "start": 779,
+          "stop": 786,
+          "text": ""
+        },
+        {
+          "start": 789,
+          "stop": 796,
+          "text": "资料"
+        },
+        {
+          "start": 1034,
+          "stop": 1050,
+          "text": "复制当前任务"
+        },
+        {
+          "start": 1295,
+          "stop": 1299,
+          "text": "复制"
+        },
+        {
+          "start": 1316,
+          "stop": 1319,
+          "text": "任务"
+        },
+        {
+          "start": 1576,
+          "stop": 1593,
+          "text": "分享当前任务"
+        },
+        {
+          "start": 1821,
+          "stop": 1825,
+          "text": "静音"
+        },
+        {
+          "start": 2050,
+          "stop": 2056,
+          "text": "取消静音"
+        },
+        {
+          "start": 2252,
+          "stop": 2258,
+          "text": "举报"
+        }
+      ],
+      "newline": "lf"
+    },
+    {
+      "index": 10,
+      "name": "bus_job_dispatcher.rcss",
+      "path_hash": "0x90c66de9c7563927",
+      "source_sha256": "ad58d77c41d28dfaebec9ec24437ce6cec525e6fa9c523dfe6722a1935cf4c14",
+      "result_sha256": "2018b71a1ef4612fea100324837107e91124d4cef4ccc81b0158da5b47e775e0",
+      "edits": [
+        {
+          "start": 19,
+          "stop": 20,
+          "text": "9"
+        },
+        {
+          "start": 60,
+          "stop": 61,
+          "text": "3.5"
+        },
+        {
+          "start": 104,
+          "stop": 104,
+          "text": "}\n\n#body {\n    background-color: #171D23F5;\n    color: #DFE7EE;\n}\n\n#title {\n    background-color: #202C34;\n    color: #DFE7EE;\n    height: 30dp;\n}\n\n#title__content { font-size: 14dp; }\n#title__close { color: #9BACBA; }\n#title__close:hover { color: #FFFFFF; background-color: #70404A; "
+        },
+        {
+          "start": 238,
+          "stop": 239,
+          "text": "2"
+        },
+        {
+          "start": 243,
+          "stop": 244,
+          "text": "4"
+        },
+        {
+          "start": 247,
+          "stop": 249,
+          "text": "14"
+        },
+        {
+          "start": 263,
+          "stop": 264,
+          "text": "2"
+        },
+        {
+          "start": 288,
+          "stop": 288,
+          "text": "{ width: 100%; }\n#job_information "
+        },
+        {
+          "start": 291,
+          "stop": 295,
+          "text": ""
+        },
+        {
+          "start": 313,
+          "stop": 317,
+          "text": ""
+        },
+        {
+          "start": 326,
+          "stop": 326,
+          "text": "2dp "
+        },
+        {
+          "start": 328,
+          "stop": 328,
+          "text": " }"
+        },
+        {
+          "start": 329,
+          "stop": 329,
+          "text": "#job_information strong { color: #79D2C5; "
+        },
+        {
+          "start": 361,
+          "stop": 363,
+          "text": "2"
+        },
+        {
+          "start": 456,
+          "stop": 456,
+          "text": "h2 { font-size: 16dp; color: #79D2C5; }\n#timetable "
+        },
+        {
+          "start": 463,
+          "stop": 464,
+          "text": ""
+        },
+        {
+          "start": 465,
+          "stop": 465,
+          "text": "width:"
+        },
+        {
+          "start": 466,
+          "stop": 467,
+          "text": "100%;"
+        },
+        {
+          "start": 484,
+          "stop": 485,
+          "text": " "
+        },
+        {
+          "start": 486,
+          "stop": 487,
+          "text": ""
+        },
+        {
+          "start": 522,
+          "stop": 526,
+          "text": ""
+        },
+        {
+          "start": 535,
+          "stop": 537,
+          "text": "18"
+        },
+        {
+          "start": 540,
+          "stop": 541,
+          "text": " "
+        },
+        {
+          "start": 542,
+          "stop": 543,
+          "text": ""
+        },
+        {
+          "start": 578,
+          "stop": 582,
+          "text": ""
+        },
+        {
+          "start": 590,
+          "stop": 592,
+          "text": "72"
+        },
+        {
+          "start": 595,
+          "stop": 596,
+          "text": " "
+        },
+        {
+          "start": 597,
+          "stop": 598,
+          "text": ""
+        },
+        {
+          "start": 626,
+          "stop": 630,
+          "text": ""
+        },
+        {
+          "start": 649,
+          "stop": 650,
+          "text": " color: #9BACBA; "
+        },
+        {
+          "start": 651,
+          "stop": 652,
+          "text": ""
+        },
+        {
+          "start": 700,
+          "stop": 704,
+          "text": ""
+        },
+        {
+          "start": 724,
+          "stop": 728,
+          "text": ""
+        },
+        {
+          "start": 741,
+          "stop": 743,
+          "text": "8"
+        },
+        {
+          "start": 746,
+          "stop": 747,
+          "text": " "
+        },
+        {
+          "start": 748,
+          "stop": 749,
+          "text": ""
+        },
+        {
+          "start": 771,
+          "stop": 775,
+          "text": ""
+        },
+        {
+          "start": 799,
+          "stop": 800,
+          "text": " padding: 3dp 2dp; "
+        },
+        {
+          "start": 828,
+          "stop": 832,
+          "text": "4dp"
+        },
+        {
+          "start": 892,
+          "stop": 893,
+          "text": "7"
+        },
+        {
+          "start": 933,
+          "stop": 933,
+          "text": ";\n"
+        },
+        {
+          "start": 934,
+          "stop": 936,
+          "text": "   backgroun"
+        },
+        {
+          "start": 937,
+          "stop": 938,
+          "text": "-color: #29574F;\n    color: #DCFFF8"
+        },
+        {
+          "start": 1011,
+          "stop": 1015,
+          "text": ""
+        },
+        {
+          "start": 1035,
+          "stop": 1037,
+          "text": "357"
+        },
+        {
+          "start": 1038,
+          "stop": 1039,
+          "text": "66; }\nbutton[disabled] { background-color: #242B32; color: #768"
+        },
+        {
+          "start": 1040,
+          "stop": 1040,
+          "text": "8A; }\n#abandon { background-color: #70404A; color: #FFE5EA; }\n#abandon:not([disabled]):hover { background-color: #8B4"
+        },
+        {
+          "start": 1041,
+          "stop": 1041,
+          "text": "5A"
+        },
+        {
+          "start": 1042,
+          "stop": 1043,
+          "text": " "
+        },
+        {
+          "start": 1067,
+          "stop": 1068,
+          "text": "5"
+        },
+        {
+          "start": 1110,
+          "stop": 1118,
+          "text": "48626A"
+        },
+        {
+          "start": 1139,
+          "stop": 1140,
+          "text": "3"
+        },
+        {
+          "start": 1162,
+          "stop": 1162,
+          "text": "    background-color: #202C34;\n    color: #DFE7EE;\n"
+        },
+        {
+          "start": 1179,
+          "stop": 1183,
+          "text": ""
+        },
+        {
+          "start": 1199,
+          "stop": 1199,
+          "text": "79D2C"
+        },
+        {
+          "start": 1200,
+          "stop": 1205,
+          "text": ""
+        },
+        {
+          "start": 1206,
+          "stop": 1207,
+          "text": " "
+        },
+        {
+          "start": 1208,
+          "stop": 1209,
+          "text": ""
+        },
+        {
+          "start": 1230,
+          "stop": 1234,
+          "text": ""
+        },
+        {
+          "start": 1247,
+          "stop": 1248,
+          "text": " "
+        },
+        {
+          "start": 1249,
+          "stop": 1250,
+          "text": ""
+        },
+        {
+          "start": 1432,
+          "stop": 1436,
+          "text": ""
+        },
+        {
+          "start": 1455,
+          "stop": 1459,
+          "text": ""
+        },
+        {
+          "start": 1479,
+          "stop": 1485,
+          "text": "202C34"
+        },
+        {
+          "start": 1486,
+          "stop": 1490,
+          "text": ""
+        },
+        {
+          "start": 1527,
+          "stop": 1528,
+          "text": " "
+        },
+        {
+          "start": 1529,
+          "stop": 1530,
+          "text": ""
+        },
+        {
+          "start": 1556,
+          "stop": 1560,
+          "text": ""
+        },
+        {
+          "start": 1579,
+          "stop": 1580,
+          "text": " "
+        },
+        {
+          "start": 1581,
+          "stop": 1582,
+          "text": ""
+        },
+        {
+          "start": 1614,
+          "stop": 1618,
+          "text": ""
+        },
+        {
+          "start": 1638,
+          "stop": 1642,
+          "text": "29574F"
+        },
+        {
+          "start": 1643,
+          "stop": 1644,
+          "text": " "
+        },
+        {
+          "start": 1645,
+          "stop": 1646,
+          "text": ""
+        },
+        {
+          "start": 1683,
+          "stop": 1687,
+          "text": ""
+        },
+        {
+          "start": 1699,
+          "stop": 1700,
+          "text": " "
+        },
+        {
+          "start": 1701,
+          "stop": 1702,
+          "text": ""
+        },
+        {
+          "start": 1749,
+          "stop": 1753,
+          "text": ""
+        },
+        {
+          "start": 1773,
+          "stop": 1781,
+          "text": "48626A"
+        },
+        {
+          "start": 1782,
+          "stop": 1782,
+          "text": " }"
+        },
+        {
+          "start": 1783,
+          "stop": 1783,
+          "text": "#timetable scrollbarvertical sliderbar { background-color: #48626A; "
+        },
+        {
+          "start": 1797,
+          "stop": 1801,
+          "text": ""
+        },
+        {
+          "start": 1821,
+          "stop": 1825,
+          "text": ""
+        },
+        {
+          "start": 1838,
+          "stop": 1842,
+          "text": ""
+        },
+        {
+          "start": 1856,
+          "stop": 1860,
+          "text": ""
+        },
+        {
+          "start": 1868,
+          "stop": 1872,
+          "text": ""
+        },
+        {
+          "start": 1881,
+          "stop": 1885,
+          "text": ""
+        },
+        {
+          "start": 1899,
+          "stop": 1900,
+          "text": " "
+        }
+      ],
+      "newline": "lf"
+    },
+    {
+      "index": 12,
+      "name": "bus_job_dispatcher.lua",
+      "path_hash": "0xb80f27c743e06e97",
+      "source_sha256": "dad98becfd753a455e72353a82ae759321d3a6eff1cb02688a5ef82556f8ad32",
+      "result_sha256": "6c9728ba7375010f897c0f26f9cf5c4e00e3d53a7e1af7f160881cf8950765cc",
+      "edits": [
+        {
+          "start": 538,
+          "stop": 556,
+          "text": "公交调度"
+        }
+      ],
+      "newline": "crlf"
+    },
+    {
+      "index": 13,
+      "name": "bus_job_dispatcher.rml",
+      "path_hash": "0xc0f695cd29edbc73",
+      "source_sha256": "346355c805bd8f8dd41a022bc3569cf30683531384924cb01af35de22296e328",
+      "result_sha256": "cf5666f73ab892c15688f1d872654639e8d5f90d6ea53975c9a40f8636486fdf",
+      "edits": [
+        {
+          "start": 32,
+          "stop": 50,
+          "text": "公交调度"
+        },
+        {
+          "start": 597,
+          "stop": 694,
+          "text": "你已有进行中的公交任务，请先完成后再接取新任务。"
+        },
+        {
+          "start": 805,
+          "stop": 812,
+          "text": "放弃任务"
+        },
+        {
+          "start": 1253,
+          "stop": 1269,
+          "text": "预计收入："
+        },
+        {
+          "start": 1430,
+          "stop": 1444,
+          "text": "计算中…"
+        },
+        {
+          "start": 1503,
+          "stop": 1507,
+          "text": "预计到达："
+        },
+        {
+          "start": 1665,
+          "stop": 1679,
+          "text": "计算中…"
+        },
+        {
+          "start": 1738,
+          "stop": 1752,
+          "text": "行驶里程："
+        },
+        {
+          "start": 1918,
+          "stop": 1932,
+          "text": "计算中…"
+        },
+        {
+          "start": 1991,
+          "stop": 2008,
+          "text": "乘客总数："
+        },
+        {
+          "start": 2173,
+          "stop": 2187,
+          "text": "计算中…"
+        },
+        {
+          "start": 2337,
+          "stop": 2346,
+          "text": "时刻表"
+        },
+        {
+          "start": 2478,
+          "stop": 2482,
+          "text": "站点"
+        },
+        {
+          "start": 2516,
+          "stop": 2519,
+          "text": "到达时间"
+        },
+        {
+          "start": 2553,
+          "stop": 2561,
+          "text": "里程"
+        },
+        {
+          "start": 2849,
+          "stop": 2863,
+          "text": "计算中…"
+        },
+        {
+          "start": 3079,
+          "stop": 3093,
+          "text": "计算中…"
+        },
+        {
+          "start": 3363,
+          "stop": 3390,
+          "text": "请先选择一条线路。"
+        },
+        {
+          "start": 3562,
+          "stop": 3568,
+          "text": "创建任务"
+        }
+      ],
+      "newline": "crlf"
+    }
+  ]
+}
