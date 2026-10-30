@@ -5,6 +5,7 @@ from common import atomic_json, digest, plain, require
 import installer_backend as backend
 from installer_store import Store
 import resources
+import archive
 from installer_settings import SettingsStore, DLL
 
 
@@ -46,6 +47,11 @@ def run(directory, source=None, assets=None):
     result = store.install(fonts['regular'], fonts['semibold'], fonts['mono'], backend.VERSION,
                            settings_fonts=settings_fonts, freight_fonts=freight_fonts)
     require(result['state'] == 'installed' and store.status()['state'] == 'installed', 'Installation self-test failed')
+    ui = {row['path_hash']: row['raw'] for row in archive.parse((clone / 'data/shared_mod/ui.mp').read_bytes())}
+    require(all(('id="zh_filter_' + name + '"').encode() in ui[0x3e73ff2535fef0e0]
+                for name in ('all', 'friends', 'company', 'staff')) and
+            b'PlayerPanel.ZHRefreshFilterTabs' in ui[0xf437dd82ad50f511],
+            'Player-filter resources were not included in the installed package')
     native = SettingsStore(clone, state, processes=lambda: [])
     native_result = native.install(game, assets, backend.VERSION)
     require(native_result['state'] == 'installed' and (executable.parent / 'plugins' / DLL).is_file(),
@@ -71,7 +77,7 @@ def run(directory, source=None, assets=None):
                 for name, value in live_before.items()), 'Read-only source changed during self-test')
     report = dict(passed=True, version=backend.VERSION, files=len(resources.OUTPUTS), install=True,
                   idempotence=True, restore=True, persistent_receipts=True, live_source_unchanged=True,
-                  unicode_paths=True, game_started=False)
+                  unicode_paths=True, game_started=False, player_filter_resources=True)
     report.update(settings_installed=True, settings_restore=True, settings_idempotence=True,
                   settings_path='bin/win_x64/plugins/' + DLL)
     atomic_json(directory / 'self-test.json', report)

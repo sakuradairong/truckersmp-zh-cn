@@ -45,6 +45,8 @@ def main():
     require(not OUT.is_relative_to(CORE.parent), 'Build output cannot be inside the TMP installation')
     data = CORE.read_bytes()
     check_bytes(data, read_json(ROOT / 'profiles/settings-abi.json'))
+    from prepare_player_filters import prepare as prepare_filters
+    filters = prepare_filters(data, OUT)
     p = pefile.PE(data=data)
     base = p.OPTIONAL_HEADER.ImageBase
     m = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_64)
@@ -194,7 +196,7 @@ def main():
                   labels=sum(len(pg['rows']) for pg in catalog['pages']),
                   tooltips=sum('tooltip' in row for pg in catalog['pages'] for row in pg['rows']),
                   option_groups=len(groups), option_occurrences=sum(len(r['options']) for _, r, _ in groups),
-                  source_evidence=evidence, runtime_guards=checks,
+                  source_evidence=evidence, runtime_guards=checks, player_filters=filters,
                   limits='Static ABI review and offline tests do not establish in-game loading or rendering.')
     (OUT / 'native-profile.json').write_text(json.dumps(report, ensure_ascii=False, indent=2)+'\n', encoding='utf-8')
 

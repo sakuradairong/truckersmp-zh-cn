@@ -64,13 +64,13 @@ def build(assets):
     licenses = work / 'runtime-licenses'
     collect_licenses(licenses)
     version_file = work / 'version-info.txt'
-    version_file.write_text("""VSVersionInfo(ffi=FixedFileInfo(filevers=(0,3,0,3), prodvers=(0,3,0,3),
+    version_file.write_text("""VSVersionInfo(ffi=FixedFileInfo(filevers=(0,3,0,4), prodvers=(0,3,0,4),
 mask=0x3f, flags=2, OS=0x40004, fileType=0x1, subtype=0x0, date=(0,0)), kids=[
 StringFileInfo([StringTable('040904b0', [
 StringStruct('FileDescription', 'TruckersMP Simplified Chinese installer'),
-StringStruct('FileVersion', '0.3.0-preview.3'),
+StringStruct('FileVersion', '0.3.0-preview.4'),
 StringStruct('ProductName', 'TruckersMP ZH-CN'),
-StringStruct('ProductVersion', '0.3.0-preview.3'),
+StringStruct('ProductVersion', '0.3.0-preview.4'),
 StringStruct('LegalCopyright', 'MIT; bundled fonts under SIL OFL 1.1')])]),
 VarFileInfo([VarStruct('Translation', [1033,1200])])])""", encoding='utf-8')
     executable_name = 'TruckersMP-ZH-CN-Setup-' + backend.VERSION
@@ -108,9 +108,11 @@ def package(executable, assets):
         '3. 点击“安装汉化”，完成后正常从 TMP 启动器进入游戏。\n'
         '4. 如需撤销，重新运行安装器，点击“恢复安装前状态”。\n\n'
         '适用 Windows x64 / ETS2；按实际资源与 Settings 代码、控件结构检查兼容性。\n'
-        '默认包括 Tab、公交、货运静态文案、Settings 五页汉化及货运中文修复。\n'
+        '默认包括 Tab、公交、货运静态文案、Settings 五页汉化、货运中文修复及四个玩家筛选页签。\n'
         '旧汉化可直接点击“更新 / 检查汉化”，保留首次安装前的恢复点。\n'
-        '货运中文修复需保留勾选原生模块并确认 ETS2 目录；取消勾选仅安装静态资源。\n'
+        '货运中文修复和玩家筛选需保留勾选原生模块并确认 ETS2 目录；取消勾选仅安装静态资源。\n'
+        '筛选为全部、好友、同车队及 TruckersMP 工作人员；可与搜索和历史叠加。\n'
+        '筛选所需代码不兼容时隐藏页签并保留原列表。\n'
         '货运字库覆盖当前基础游戏简体中文所需字符，已检查 11/14/18/21px；模组新增字符仍可能缺失。\n'
         '备份保存在 %LOCALAPPDATA%\\TruckersMPZH，删除下载的 EXE 不会删除备份。\n'
         '无需 Python、编译器、SDK、联网下载或用户自备字体。\n'
@@ -134,7 +136,7 @@ def package(executable, assets):
                                                  for path in (executable, archive)},
                   zip_entries=[name for _, name in entries], code_signed=False, published=False,
                   fonts_bundled=True, client_assets_bundled=False, native_settings_bundled=True,
-                  native_freight_fonts_bundled=True, live_validation='not_performed')
+                  native_freight_fonts_bundled=True, native_player_filters_bundled=True, live_validation='not_performed')
     atomic_json(folder / 'installer-package.json', report)
     return report
 

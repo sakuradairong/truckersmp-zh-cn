@@ -106,7 +106,7 @@ class TranslationChecks(unittest.TestCase):
         with patch.object(resources, 'apply_edits', side_effect=lambda raw, entry: raw + b' translated'):
             result = resources.localized_ui(source)
         before, after = archive.parse(source), archive.parse(result)
-        self.assertEqual(len(before), 9)
+        self.assertEqual(len(before), 10)
         self.assertEqual(before[0]['packed'], after[0]['packed'])
         self.assertEqual(before[1]['packed'], after[1]['packed'])
         for old, new in zip(before[2:], after[2:]):

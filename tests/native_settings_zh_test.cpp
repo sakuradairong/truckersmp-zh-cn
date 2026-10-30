@@ -313,6 +313,8 @@ void TestFreightFonts() {
 }
 } // namespace
 
+#include "native_player_filters_test.h"
+
 int Run(int argc,char** argv) {
     nativeAssign=MakeAssignFixture();nativeSetFont=FontFixture<SetFont>(kSetFontCode);enabled=true;
     core=static_cast<unsigned char*>(VirtualAlloc(nullptr,kImageSize,MEM_RESERVE|MEM_COMMIT,PAGE_READWRITE));
@@ -367,6 +369,7 @@ int Run(int argc,char** argv) {
     TestNativeFontMeasurement();
     TestAlreadyCreatedWindow();
     TestFreightFonts();
+    playerfilterfixture::Run();
     Text unknown("My Player 公开");Check(!TranslateText(&unknown,kRows[0].label,0),"player-owned text unchanged");
     Text disabled(kRows[0].label.en);enabled=false;Check(!TranslateText(&disabled,kRows[0].label,0),"disabled adapter forwards unchanged");
     enabled=true;
@@ -374,7 +377,7 @@ int Run(int argc,char** argv) {
     DWORD old;Check(VirtualProtect(core,kImageSize,PAGE_EXECUTE_READWRITE,&old)!=0,"fake code protection");
     Check(MH_Initialize()==MH_OK,"isolated MinHook initialized");
     for(unsigned rva:{0x13d110u,0x13de20u,0x13e130u,0x13e860u,0xf0310u,0xef4f0u,0xf0210u,0x13da10u,
-                      0xfc300u,0xfc260u,0x3304f0u,0x331700u}) {
+                      0xfc300u,0xfc260u,0x3304f0u,0x331700u,0x1cdc10u,0x1cb500u,0x1d66c0u,0x1cf710u,0x1cd970u}) {
         void* original=nullptr;Check(MH_CreateHook(core+rva,reinterpret_cast<void*>(&HookCString),&original)==MH_OK,"reviewed native prologue trampoline");
         Check(original!=nullptr,"trampoline produced");Check(MH_RemoveHook(core+rva)==MH_OK,"unarmed test hook removed");
     }
@@ -401,7 +404,7 @@ int main(int argc,char** argv) {
     for(auto& slot:freightFonts)if(slot.used){DestroyWide(slot.font.name);slot.used=false;}
     Check(allocated==released,"all native fixture/string allocations released by the same allocator");
     VirtualFree(core,0,MEM_RELEASE);VirtualFree(reinterpret_cast<void*>(nativeAssign),0,MEM_RELEASE);
-    std::printf("PASS: %u checks; Settings/freight, native ownership, lifecycle, guards, twelve trampolines, SCS-only DLL.\n",checks);
+    std::printf("PASS: %u checks; Settings/freight, four player filters, native ownership, lifecycle, guards, seventeen trampolines, SCS-only DLL.\n",checks);
     std::printf("No game/TMP process was started or attached; in-game validation remains outstanding.\n");
     if(argc>=3) {
         FILE* report=nullptr;fopen_s(&report,argv[2],"wb");Check(report!=nullptr,"test report output");

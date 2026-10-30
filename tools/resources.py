@@ -27,9 +27,9 @@ OUTPUTS = PRE_FREIGHT_OUTPUTS + FREIGHT_FONTS
 SOURCES = ('tools/resources.py', 'tools/archive.py', 'tools/font_cmap.py', 'tools/common.py',
            'tools/check_characters.py', 'profiles/resource-edits.json', 'profiles/freight-zh-cn.json',
            'profiles/settings-zh-cn.json', 'tools/resource_text.py', 'tools/native_font_atlas.py',
-           'profiles/freight-characters.json')
+           'profiles/freight-characters.json', 'ui/player_filters.lua')
 UI_NAMES = {'player_panel.rml', 'player_list.rml', 'player_panel.rcss', 'player_context_menu.rml',
-            'bus_job_dispatcher.rml', 'bus_job_dispatcher.rcss', 'bus_job_dispatcher.lua'}
+            'bus_job_dispatcher.rml', 'bus_job_dispatcher.rcss', 'bus_job_dispatcher.lua', 'player_panel.lua'}
 FREIGHT_PATH = 0xc3895edbd485993e
 FREIGHT_TARGETS = (
     ('GroupBox', '', 'Source'), ('Button', 'sourceMap', 'Display Map'),
@@ -79,6 +79,14 @@ def inputs(tmp_root):
 
 
 def apply_edits(raw, entry):
+    if entry['name'] == 'player_panel.lua':
+        text = raw.decode('utf-8')
+        require(text.count('function OnLoad(document)') == 1 and
+                all('PlayerPanel.' + name in text for name in ('SearchPlayers', 'SortPlayers', 'ToggleHistory')) and
+                'zh_player_filters' not in text, 'Incompatible resource player_panel.lua: native callbacks changed')
+        newline = b'\r\n' if b'\r\n' in raw else b'\n'
+        extension = (ROOT / 'ui/player_filters.lua').read_bytes().replace(b'\r\n', b'\n')
+        return raw + newline + extension.replace(b'\n', newline)
     return resource_text.apply(raw, entry)
 
 

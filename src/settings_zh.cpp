@@ -14,6 +14,8 @@
 #include "MinHook.h"
 #include "scssdk_telemetry.h"
 #include "settings_profile.h"
+#include "player_filter_logic.h"
+#include "player_filters_profile.h"
 
 namespace {
 using namespace settingszh;
@@ -462,6 +464,8 @@ void* HookConvert(void* object,const void* source) {
     return result;
 }
 
+#include "player_filters.h"
+
 bool VerifyImage() {
     if(!Readable(core,4096))return false;
     const auto* dos=reinterpret_cast<IMAGE_DOS_HEADER*>(core);
@@ -528,6 +532,7 @@ void Attach(HMODULE module) {
     if(MH_ApplyQueued()!=MH_OK){Log("inactive: hook activation failed; original forwarding retained");return;}
     enabled=true;
     if(stopped.load()){enabled=false;return;}
+    playerfilters::Attach();
     Log("ready: experimental Settings zh-CN; code/ABI compatible; five pages; native wide strings; no TMP SDK");
     Log("ready means hooks armed only; in-game loading, appearance and selection still require observation");
 }

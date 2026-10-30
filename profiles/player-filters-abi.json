@@ -1,0 +1,151 @@
+{
+  "schema": 1,
+  "guards": [
+    {
+      "name": "player-list-search",
+      "rva": 1891344,
+      "size": 501,
+      "sha256": "11d3324f4a03d33fafe90ae15b0b39ba9b358d2addc9dd2c65fdca53202b73d5"
+    },
+    {
+      "name": "player-list-sort-viewport",
+      "rva": 1890672,
+      "size": 3221,
+      "sha256": "1f4fd38a789d85e7756ad8319b257e8de9a294e3aaaa20165dd6bd79901b28d0"
+    },
+    {
+      "name": "player-panel-release",
+      "rva": 1881344,
+      "size": 340,
+      "sha256": "2e37e979e7efc3844d32f2600f834fcb3807f705bf43268ab60e6b6e88c6fb55"
+    },
+    {
+      "name": "player-panel-lua-registration",
+      "rva": 1898256,
+      "size": 529,
+      "sha256": "c94da9b9a1cca774720c78543d3a6b04f8251341ca6af22e7af5725a1f2c0466"
+    },
+    {
+      "name": "player-panel-raw-count",
+      "rva": 1926848,
+      "size": 142,
+      "sha256": "a722c017ccc3007c23f4a49cb39254b429ce5447947971a99d1a67b06dea7486"
+    },
+    {
+      "name": "player-native-row-erase",
+      "rva": 1912848,
+      "size": 391,
+      "sha256": "4763cf2bd1d47962c588b8f0c2ab5edf7b83209794f573343d3105b95bb7a0cc"
+    },
+    {
+      "name": "player-native-string-move",
+      "rva": 531536,
+      "size": 137,
+      "sha256": "87c96d47e38186a29bc0ee24ec7d1aba709cf71410326db9bfab6a24c24cd791"
+    },
+    {
+      "name": "player-native-string-destroy",
+      "rva": 535184,
+      "size": 82,
+      "sha256": "a5442daa9d732cbf50be5854c172e6c25f32607a2499b6e9d4e9ac732b57a000"
+    },
+    {
+      "name": "player-native-panel-reference",
+      "rva": 1896272,
+      "size": 155,
+      "sha256": "999d940a40ea1629ec8e21f14c0d6a146ddec7a5b914c2952eb3ef6132066a43"
+    },
+    {
+      "name": "player-native-context",
+      "rva": 1883216,
+      "size": 262,
+      "sha256": "babd6def34a730b063a87d2f4a4dd47607e4ac959e3c7edc4414740707f1fac0"
+    },
+    {
+      "name": "player-native-selection-clear",
+      "rva": 1804160,
+      "size": 441,
+      "sha256": "8f33a6f11bb23b341a028565a0bfcc581536ec8ba7c4997cb3493e257407fb76"
+    },
+    {
+      "name": "player-native-variant-string",
+      "rva": 8410240,
+      "size": 167,
+      "sha256": "9d72cad5bc2b23c19a6cba8ffc816dc5a22bb933a1349eaa67da04e12f4e16ad"
+    },
+    {
+      "name": "player-model-dirty",
+      "rva": 8347248,
+      "size": 8,
+      "sha256": "4b4dd1e629e842f6e239625c26c1fbbc16de44f5c38c585abf2180511e099c98"
+    },
+    {
+      "name": "player-lua-top",
+      "rva": 7510800,
+      "size": 13,
+      "sha256": "24e19dafa7d7d982778e485089ad3f2869f9f061022678ac561486e986ed0d0b"
+    },
+    {
+      "name": "player-lua-set-top",
+      "rva": 7514592,
+      "size": 155,
+      "sha256": "e251f312b28c469a19f9e406eaf1fa8b0e3d4f8218e2470208dc4c7343282db8"
+    },
+    {
+      "name": "player-lua-get-field",
+      "rva": 7510336,
+      "size": 464,
+      "sha256": "6813d8ee0db9632c1212761dcdf2fa0fb40d0ac6f4a50ed8d4302326f80435b0"
+    },
+    {
+      "name": "player-lua-closure",
+      "rva": 7512256,
+      "size": 304,
+      "sha256": "46a3847df41f02e899f6b8d5993af99bef2ccd83a6eb80fa38609e111d814186"
+    },
+    {
+      "name": "player-lua-set-field",
+      "rva": 7513968,
+      "size": 576,
+      "sha256": "f7a15cdfdf5bc9158b56c1e4129d243a970a7e4c9c6cf3c90a7e78f1f9c95130"
+    },
+    {
+      "name": "player-lua-check-string",
+      "rva": 7507088,
+      "size": 224,
+      "sha256": "36ab0bbb35626cd47e846c3f7f4105bc1675b49b65c15a71c75ea0dce60b3fef"
+    },
+    {
+      "name": "player-lua-push-integer",
+      "rva": 7512560,
+      "size": 36,
+      "sha256": "3622fd736189a63fe8b3032e6337ad942c40cdca2a500c5e9c0ed5bc955c0c30"
+    },
+    {
+      "name": "player-lua-state-thunk",
+      "rva": 9415952,
+      "size": 5,
+      "sha256": "efd9861bc2bd6a7cb4484b78648d7e180cef65a4d188314b5790ba6de36520c3"
+    },
+    {
+      "name": "player-lua-state",
+      "rva": 9417280,
+      "size": 80,
+      "sha256": "7f688f5ca33db11ff274edebfbb6d4b94571b389fe2bd0dfa69a3048db269e9b"
+    },
+    {
+      "name": "player-lua-protected-call",
+      "rva": 7512000,
+      "size": 256,
+      "sha256": "03a86d13044ebfe6812da04247c595c227f9259ee4fe4c9abd2f53dcaf71f668"
+    }
+  ],
+  "field_offsets": {
+    "panel_model": 280,
+    "candidates": 104,
+    "staff": 28,
+    "friend": 30,
+    "company_buddy": 31
+  },
+  "note": "Guards for the player UI projection, Lua bindings and native ownership operations only. No release or whole-image whitelist."
+}

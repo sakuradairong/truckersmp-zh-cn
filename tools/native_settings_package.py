@@ -17,7 +17,9 @@ sys.dont_write_bytecode = True
 ROOT = Path(__file__).resolve().parents[1]
 RELEASE = ROOT / 'build/native-settings-zh'
 DLL = 'TmpSettingsZh.dll'
-NATIVE_SOURCES = ('src/settings_zh.cpp','src/settings_zh.def','profiles/settings-zh-cn.json',
+NATIVE_SOURCES = ('src/settings_zh.cpp','src/settings_zh.def','src/player_filter_logic.h','src/player_filters.h',
+                  'profiles/player-filters-abi.json','tools/prepare_player_filters.py','tests/native_player_filters_test.h',
+                  'profiles/settings-zh-cn.json',
                   'profiles/settings-abi.json','tools/settings_compatibility.py',
                   'tests/native_settings_zh_test.cpp','tools/prepare_native_settings_zh.py','build-settings-zh.ps1',
                   'tools/native_settings_package.py') + tuple(sorted(p.relative_to(ROOT).as_posix()

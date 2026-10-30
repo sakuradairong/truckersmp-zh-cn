@@ -123,6 +123,15 @@
           },
           "source": "Press right mouse button to enable cursor",
           "text": "右键启用鼠标 · 拖动右下角调整大小"
+        },
+        {
+          "mode": "append",
+          "selector": {
+            "attrs": {
+              "id": "players_query"
+            }
+          },
+          "text": "\n<div id=\"zh_player_filters\" style=\"display: none;\" data-if=\"online\">\n    <button id=\"zh_filter_all\" class=\"txt_button zh_filter_tab\" title=\"显示所有符合搜索的玩家\">全部</button>\n    <button id=\"zh_filter_friends\" class=\"txt_button zh_filter_tab\" title=\"按原生好友标记筛选\">好友</button>\n    <button id=\"zh_filter_company\" class=\"txt_button zh_filter_tab\" title=\"按原生同车队标记筛选\">车队</button>\n    <button id=\"zh_filter_staff\" class=\"txt_button zh_filter_tab\" title=\"TruckersMP 工作人员\">团队成员</button>\n    <span class=\"zh_filter_hint\">人数：匹配 / 搜索结果</span>\n</div>\n"
         }
       ]
     },
@@ -491,6 +500,54 @@
             "right": "20dp",
             "font-size": ".8em",
             "color": "#93A5B2"
+          }
+        },
+        {
+          "selector": "#players_query",
+          "properties": {
+            "flex-wrap": "wrap"
+          }
+        },
+        {
+          "selector": "#zh_player_filters",
+          "required": false,
+          "properties": {
+            "flex-basis": "100%",
+            "flex-shrink": "0",
+            "align-items": "center",
+            "flex-wrap": "wrap",
+            "padding-top": "7dp"
+          }
+        },
+        {
+          "selector": "#players_query #zh_player_filters .zh_filter_tab",
+          "required": false,
+          "properties": {
+            "margin-left": "0",
+            "margin-right": "5dp",
+            "margin-bottom": "3dp",
+            "padding": "3dp 10dp",
+            "background-color": "#30363D",
+            "color": "#DCE1E7",
+            "border-bottom": "2dp #30363D"
+          }
+        },
+        {
+          "selector": "#players_query #zh_player_filters .zh_filter_selected",
+          "required": false,
+          "properties": {
+            "background-color": "#B92025",
+            "color": "#FFFFFF",
+            "border-bottom": "2dp #F1AAAD"
+          }
+        },
+        {
+          "selector": "#zh_player_filters .zh_filter_hint",
+          "required": false,
+          "properties": {
+            "font-size": "10dp",
+            "color": "#AAB3BE",
+            "margin-left": "4dp"
           }
         }
       ]
@@ -1021,6 +1078,11 @@
           "text": "创建任务"
         }
       ]
+    },
+    {
+      "name": "player_panel.lua",
+      "path_hash": "0xf437dd82ad50f511",
+      "edits": []
     }
   ]
 }
