@@ -1,185 +1,179 @@
 # TruckersMP 简体中文界面补丁
 
-独立的汉化源码项目，包含 Tab 玩家面板、公交子窗口、货运界面和实验性 Settings 汉化。
-不依赖 TruckersMP SDK。原生 Settings 模块使用 SCS 的插件入口加载，并检查所需界面代码与控件结构。
+**简体中文** | [English](README.en.md)
 
-| 部分 | 范围 |
+面向 Windows x64 / Euro Truck Simulator 2 的非官方 TruckersMP 界面汉化项目，提供中文界面、离线图形安装器和恢复工具。
+
+当前源码候选版本：**0.3.0-preview.4**。Settings 汉化、货运动态中文修复和 TAB 玩家筛选依赖实验性原生模块；游戏内显示、联网兼容性和性能仍待验收。
+
+## 功能
+
+| 模块 | 功能 |
 | --- | --- |
-| Tab | 玩家面板、列表、右键菜单的中文与紧凑样式；四个分类筛选页签需原生模块 |
-| 公交 | 调度窗口中文、标题和适配样式 |
-| 货运 | 17 处静态标题、按钮和复选框，以及动态中文字体修复；保留原有数据与动作 |
-| Settings（实验性） | 常规、声音、游戏、图形、界面五页；52 个设置标题、27 处说明、9 组静态选项，以及页签与底部按钮 |
+| TAB 玩家面板 | 玩家列表、右键菜单中文与紧凑布局；全部、好友、车队、团队成员四类筛选 |
+| 公交调度 | 调度窗口、标题和按钮汉化及布局适配 |
+| 货运 | 17 处静态标题、按钮和复选框汉化；城市、公司、货物、挂车和紧急程度的动态中文字体修复 |
+| Settings（实验性） | 常规、声音、游戏、图形、界面五页；52 个设置标题、27 处说明、9 组静态选项，以及页签和底部按钮 |
+| 安装与恢复 | 离线安装、旧版升级、修改保护、中断恢复，并保留首次安装前的恢复点 |
 
-仓库发布翻译数据、差异变换、离线安装器源码、构建与恢复工具和相关测试。
-客户端文件、完整资源、生成的 DLL、机器码测试夹具及本机日志不随源码发布。
+## 安装与更新
 
-## 普通用户安装
+从 [GitHub Releases](https://github.com/sakuradairong/truckersmp-zh-cn/releases) 下载已发布的 Windows x64 安装器 EXE，或解压 ZIP 后运行其中的 EXE。普通用户无需安装 Python、编译器、SDK 或另行准备字体。
 
-从 [GitHub Releases](https://github.com/sakuradairong/truckersmp-zh-cn/releases) 下载 Windows x64 预览版安装器 EXE，或下载 ZIP 后解压。
-普通用户无需 Python、编译器、SDK 或自行寻找字体。
+1. 正常退出 ETS2、ATS 和 TruckersMP 启动器。
+2. 运行安装器，确认 TMP 安装目录和 ETS2 游戏目录；也可手动选择。
+3. 如需完整功能，保留勾选 **同时安装 Settings 汉化、货运中文修复和玩家筛选页签（实验性）**。取消勾选时只安装静态资源汉化。
+4. 点击 **安装汉化**；已有安装时点击 **更新 / 检查汉化**。完成后重新启动游戏。
 
-1. 正常退出 ETS2、ATS 和 TMP 启动器。
-2. 双击安装器，确认自动识别到的 TMP 安装目录与 ETS2 游戏目录；也可手动选择。
-3. 点击 **安装汉化**，完成后正常从 TMP 启动器进入游戏。
-4. 需要撤销时，重新运行安装器，点击 **恢复安装前状态**。
+原生模块安装到 ETS2 的 `bin/win_x64/plugins/TmpSettingsZh.dll`，重启游戏后加载。安装器分别显示资源和原生模块的安装状态，部分安装失败时会保留具体错误。
 
-已安装旧版汉化时，可直接点击 **更新 / 检查汉化**。新版文件先在本机准备并检查，首次安装前的恢复点继续保留。
+旧版 0.2.x 安装器不包含 Settings。设置页仍为英文时，使用包含原生模块的新版安装器，并确认 ETS2 游戏目录。
 
-安装器默认包含 Tab、公交、货运静态文案，以及 **Settings 五页汉化、货运动态中文显示修复和玩家筛选页签（实验性）**。
-旧版 0.2.x 预览版没有包含 Settings；设置页仍为英文的用户需运行本版，保留勾选 Settings 并确认 ETS2 游戏目录。
-货运动态中文显示修复和玩家筛选需要保留勾选原生模块并确认 ETS2 游戏目录。取消勾选时只安装静态资源。
-原生模块安装到 ETS2 的 `bin/win_x64/plugins/TmpSettingsZh.dll`，需重启游戏加载。
-安装器分别显示资源与 Settings 的安装状态；设置模块未安装成功时不会显示全部完成。
-中文字体采用允许修改和再分发的 Noto 派生字体，包含常规、半粗体、等宽拉丁与中文回退，以及货运专用映射。
-字体版权与 SIL OFL 1.1 完整条款随安装器提供，详见 [字体说明](docs/FONTS.md)。
+安装器包含允许修改和再分发的 Noto 派生字体及完整 SIL OFL 1.1 许可，详见 [字体说明](docs/FONTS.md)。EXE 尚未进行代码签名；可使用随包提供的 SHA-256 校验下载完整性。
 
-备份和恢复记录固定保存在 `%LOCALAPPDATA%\TruckersMPZH`。删除或重新下载 EXE 不影响恢复；请勿删除该目录。
-恢复的是本安装器操作前的文件，包括当时已有的覆盖资源。文件被其他程序修改时会停止操作并保留文件。
-安装中断后可重新运行安装器恢复；所需界面资源无法识别时仍可恢复已有安装。
+### 恢复安装前状态
 
-当前候选为 **0.3.0-preview.4**。包含玩家筛选页签，以及此前针对 Settings 和货运动态控件固定字形图集的中文显示修复。
+退出游戏和启动器，重新运行安装器，点击 **恢复安装前状态**。
 
-Tab 玩家面板增加“全部、好友、车队、团队成员”四个页签。“车队”使用客户端的同车队标记，“团队成员”指 TruckersMP 工作人员；同一玩家可同时匹配多个分类。搜索和历史模式与当前分类叠加，人数显示“匹配数 / 筛选前搜索结果数”。切换页签回到顶部并清除旧选择。
+- 备份与恢复记录保存在 `%LOCALAPPDATA%\TruckersMPZH`。删除或重新下载 EXE 不影响恢复，请保留该目录。
+- 升级保留首次安装前的恢复点，包括当时已有的覆盖资源。
+- 目标文件或备份被其他程序修改时，操作会停止并保留文件。
+- 安装中断后可重新运行安装器恢复；客户端资源已不兼容时，已有安装记录仍可用于恢复。
 
-筛选需要安装并加载原生模块；未安装或筛选所需代码不兼容时隐藏页签，保留原有列表。筛选只处理搜索后的完整界面候选列表，然后沿用原生排序和滚动裁剪，保留固定 21dp 行高。在线及历史源列表不变。独立的筛选兼容检查不使用客户端版本号或整个 DLL 哈希作为白名单。
+## TAB 玩家筛选
 
-离线测试覆盖完整列表、原生字符串所有权、Lua 5.1 页签交互和缺失模块回退；实际游戏内显示、联网运行和性能仍待验收。
-货运修复覆盖城市、公司、货物、挂车及紧急程度的当前显示、已有列表和新插入条目，保留显示文字、内部标识、选择指针及原有动作。
-货运字库包含当前基础游戏简体中文实际使用的 1,765 个码位（含 ASCII 和对应的拉丁字符），检查字号为 11、14、18、21px。
-更大字号、模组新增字符和补充平面字符不在本次承诺范围。静态货运映射字体仅暴露可打印 ASCII。
-原生字体绑定限于已识别的控件，保留字号和粗体属性；完整版资源字体继续用于其他面板。游戏内加载和显示尚待验收。
-EXE 尚未进行代码签名。请仅从本仓库 Releases 获取，并可用随包 SHA-256 核对下载完整性。
+| 页签 | 筛选依据 |
+| --- | --- |
+| 全部 | 所有符合当前搜索条件的玩家 |
+| 好友 | 客户端原生好友标记 `player.friend` |
+| 车队 | 客户端原生同车队标记 `player.company_buddy` |
+| 团队成员 | TruckersMP 工作人员标记 `player.staff` |
 
-## 支持范围与验证边界
+同一玩家可以同时匹配多个分类。搜索和历史模式与当前分类叠加，人数显示为 **匹配数 / 筛选前搜索结果数**。
 
-普通安装器面向 Windows x64 / ETS2，按实际界面资源结构与控件识别兼容性。Tab 与公交按控件标识和文字定位，货运按控件名与静态标题定位；不依赖固定字符偏移、条目顺序或条目总数。无关内容、新增资源与未覆盖的控件保留原样。
+切换分类会回到列表顶部并清除旧选择；重新打开 TAB 或点击当前分类会保留滚动位置。未安装或未加载原生模块、筛选代码不兼容或处于离线状态时，筛选条保持隐藏。
 
-资源仍使用相同结构、所需控件仍可明确识别时，TMP 更新后可重新运行安装器生成汉化；版本号或文件哈希变化本身不会阻止安装。必要控件缺失、重复或资源格式无法识别时，会显示具体原因并停止写入。
+筛选作用于搜索后的完整界面候选列表，随后沿用原生排序与滚动裁剪，保留固定 21dp 行高；在线和历史源列表不变。
 
-SHA-256 用于下载完整性、字体与备份完整性，以及一次安装期间的文件变化检查；不作为普通安装器的客户端版本白名单。归档内部的路径键用于识别文件名，与文件内容哈希无关。
+## 兼容性与验证状态
 
-Settings 不再以 TMP 版本号、整个 DLL 哈希或精确映像大小作为允许安装与加载的条件。
-安装器和运行时模块核查实际使用的 Settings 指令、调用关系、控件表和标题；无关字节变化不会使其停用。
-如果相关函数或控件结构变化，模块会停止加载汉化。资源文件与备份的完整性保护继续保留。
+资源汉化按控件标识、原文和资源结构识别目标，不依赖固定字符偏移、条目顺序或条目总数。必要控件缺失、重复或格式无法识别时，安装器会停止写入并说明原因。
 
-本次独立提取完成了离线构建和测试。Settings **尚未完成游戏内验收**；离线字符、内存所有权和绑定测试无法证明实际加载、显示、性能或联网兼容性。
-本项目非官方项目，未获 TruckersMP 认证，也不承诺不会触发客户端检测或处罚。使用原生钩子模块前请核对官方现行规则。
+原生模块检查实际使用的代码、调用关系和控件结构。兼容性判断不使用 TMP 版本号、整个 DLL 哈希或精确映像大小作为白名单；相关结构变化时，对应功能会停用。SHA-256 仍用于下载、字体、备份完整性和操作期间的文件变化检查。
 
-## 从源码构建（开发者）
+| 验证项目 | 当前记录 |
+| --- | --- |
+| Python / Lua 自动测试 | 79 项通过，覆盖资源、字体、安装恢复和 TAB 交互 |
+| 原生隔离检查 | 47,179 项通过，包括字符串所有权、生命周期与 17 个钩子跳板 |
+| 安装器隔离验证 | 已有候选构建完成实际 EXE 安装、重复安装、升级、中文路径和恢复检查；未修改真实游戏安装 |
+| 游戏内验收 | 尚未完成；离线结果不能证明实际加载、显示、联网兼容性或性能 |
 
-构建离线图形安装器：
+货运动态字库覆盖当前基础游戏简体中文使用的 1,765 个码位，检查字号为 11、14、18、21px。更大字号、模组新增字符和补充平面字符不在当前验证范围。静态货运文案使用专用 ASCII 映射字体，动态文字保留正常 Unicode；未翻译的内容仍可能显示英文。字体覆盖与图集容量说明见 [docs/FONTS.md](docs/FONTS.md)。
 
-```powershell
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements-installer.txt
-.\build-installer.ps1 -TmpRoot $TmpRoot -ScsSdk $ScsSdk
-```
+本项目未经 TruckersMP 官方认证，不保证原生模块不会触发客户端检测或处罚。使用前请核对官方现行规则。
 
-字体构建阶段从固定上游版本获取两份开源字体并校验 SHA-256；安装器运行时不联网。
-生成的 EXE、ZIP 和 `SHA256SUMS.txt` 位于 `dist/`。源码构建会同时打包运行库及字体许可。
-`$TmpRoot` 指向本机 TMP 安装目录，`$ScsSdk` 指向 SCS SDK 的 include 目录。
-已准备好字体时可用 `-ReuseFonts`；已编译并验证 Settings 时可再加 `-ReuseSettings`。
-客户端资源由安装器在用户本机生成，未包含在分发包中；分发包包含本项目编译的汉化模块。
+## 开发
 
-以下命令用于手动构建资源或实验性 Settings：
+### 环境准备
 
-- Python 3.11 或更高版本。
-- 本机合法安装的 TMP / ETS2，所需资源结构与控件可识别；实验性 Settings 另需上文指定客户端。
-- 自行提供含所需中文字形、允许相应修改与使用的独立 TrueType 字体，或使用上述流程生成的静态字体。
-  cmap 工具支持 Unicode 格式 4 / 12，保留非 Unicode 与变体选择映射；不支持 TTC、CFF 或未实例化的可变字体。
-- 构建 Settings 还需要 Visual Studio C++ x64 Build Tools、Windows SDK 和
-  [SCS Telemetry SDK 1.16](https://download.eurotrucksimulator2.com/scs_sdk_1_16.zip)。
-  `$ScsSdk` 指向包含 `scssdk_telemetry.h` 的目录。SDK 不随仓库提供。
+- Windows x64、Python 3.11 或更高版本。
+- 本机合法安装的 TMP / ETS2，且所需客户端代码和资源结构可识别。
+- 构建原生模块需要 Visual Studio C++ x64 Build Tools、Windows SDK，以及 [SCS Telemetry SDK 1.16](https://download.eurotrucksimulator2.com/scs_sdk_1_16.zip)。
+- `$ScsSdk` 必须指向包含 `scssdk_telemetry.h` 的 include 目录。SDK 不随仓库提供；本项目只使用 SCS 插件加载入口，不依赖 TruckersMP SDK。
+
+在 PowerShell 中运行，并将示例目录替换为实际位置：
 
 ```powershell
 git clone https://github.com/sakuradairong/truckersmp-zh-cn.git
 cd truckersmp-zh-cn
 python -m venv .venv
 $Python = '.\.venv\Scripts\python.exe'
-& $Python -m pip install -r requirements-build.txt
+& $Python -m pip install -r requirements-installer.txt
 
 $TmpRoot = Join-Path $env:APPDATA 'TruckersMP\installation'
-$GameRoot = 'X:\SteamLibrary\steamapps\common\Euro Truck Simulator 2'  # 修改为实际位置
-$Font = 'X:\Fonts\LicensedChineseFont.ttf'                            # 自行提供
-$ScsSdk = 'X:\scs-sdk-1.16\include'                                   # 修改为实际位置
+$GameRoot = 'X:\SteamLibrary\steamapps\common\Euro Truck Simulator 2'
+$ScsSdk = 'X:\scs-sdk-1.16\include'
 ```
 
-## 离线验证与构建
+### 构建安装器
 
-这些命令只读取本机输入并写入仓库的 `build/`，不会启动游戏或连接 TMP 服务器。
+```powershell
+.\build-installer.ps1 -Python $Python -TmpRoot $TmpRoot -ScsSdk $ScsSdk
+```
+
+构建阶段从固定上游版本获取开源字体并校验 SHA-256，安装器运行时不联网。EXE、ZIP 和 `SHA256SUMS.txt` 输出到 `dist/`，包含所需运行库、字体和许可证。客户端资源在用户本机生成，不随安装器分发。
+
+已有经过验证的字体产物时可使用 `-ReuseFonts`；已有编译并验证的原生模块时可再使用 `-ReuseSettings`。
+
+### 离线检查
 
 ```powershell
 & $Python -B -m unittest discover -s tests -p 'test_*.py' -v
-& $Python -B tools/check_characters.py --font $Font
-& $Python -B tools/resources.py build --tmp-root $TmpRoot --font $Font
-& $Python -B tools/resources.py verify --tmp-root $TmpRoot
+& $Python -B tools/check_publish_scope.py --working-tree
 
-# 可选：构建 Settings，并运行隔离的原生测试
+# 构建原生模块并运行隔离检查
 .\build-settings-zh.ps1 -Python $Python -TmpRoot $TmpRoot -ScsSdk $ScsSdk
 ```
 
-资源产物位于 `build/resources/`；Settings 产物位于 `build/native-settings-zh/`。
-若更换字体或修改资源源码，使用新的资源输出目录，例如 `--output build/resources-v2`。
-构建工具不会覆盖内容不同的现有产物。
+构建和隔离检查只读取本机输入并写入仓库的 `build/`，不会启动游戏或连接 TMP 服务器。资源与事务测试可使用合成输入运行；原生检查需要本机客户端生成隔离夹具，不加载 TMP DLL，也不访问游戏进程。
 
-货运窗口的部分原生控件不能正确将 UTF-8 转成宽字符，因此仅对这 17 处静态文案使用 ASCII 码位与本地字体 cmap 映射。
-专用字体只用于这些控件，保留原始动态文本、控件标识、选项和动作；未覆盖的动态条目与提示仍可能显示英文。
-Tab / 公交使用原有 RML 界面；Settings 使用 TMP 自身的宽字符串赋值函数，并保留原始窄字符串标识与设置值。
+### 手动构建、安装与恢复
 
-## 安装与恢复
+以下流程适用于开发者。操作安装目录前，先正常退出游戏和启动器。
 
-先正常退出 ETS2 和 TMP 启动器。工具会检查进程、拒绝链接/重解析点、备份现有目标并核对写入哈希。
-安装只操作下列声明的文件；保留 `build/` 中的安装记录与备份才能恢复。
+自行提供允许相应修改和使用、包含所需字形的独立 TrueType 字体，或使用安装器构建流程生成的字体。cmap 工具支持 Unicode 格式 4 / 12，并保留非 Unicode 与变体选择映射；不支持 TTC、CFF 或未实例化的可变字体。
 
 ```powershell
+$Font = 'X:\Fonts\LicensedChineseFont.ttf'
+& $Python -B tools/check_characters.py --font $Font
+& $Python -B tools/resources.py build --tmp-root $TmpRoot --font $Font
+& $Python -B tools/resources.py verify --tmp-root $TmpRoot
 & $Python -B tools/resources.py install --tmp-root $TmpRoot
 
-# 可选：安装原生 Settings。需要先有上述资源/中文字体。
-# 如 plugins 目录不存在，先自行创建 $GameRoot\bin\win_x64\plugins。
+# 可选：安装原生模块。先安装上述资源与字体；如有需要，先创建 plugins 目录。
 & $Python -B tools/native_settings_package.py seal --tmp-root $TmpRoot --game-root $GameRoot
 & $Python -B tests/native_settings_package_test.py
 & $Python -B tools/native_settings_package.py install --tmp-root $TmpRoot --game-root $GameRoot
 & $Python -B tools/native_settings_package.py verify --tmp-root $TmpRoot --game-root $GameRoot
 ```
 
-资源包只写 `data/shared_mod/` 下的 `ui.mp`、`client.mp`、根目录与 `fonts/` 中的 `OfflineFreightZH.ttf`，
-以及 `OpenSans.ttf`、`fonts/OpenSans.ttf`、`fonts/OpenSans-Semibold.ttf`、`fonts/RobotoMono.ttf` 四个字体别名，
-和 `fonts/TmpSettingsZH.ttf`、`fonts/TmpSettingsZH-Semibold.ttf` 两份 Settings 专用字体，
-以及 `fonts/TmpFreightZH.ttf`、`fonts/TmpFreightZH-Semibold.ttf` 两份货运动态字体。
-原始 `data/shared/` 文件不变。Settings 仅安装 `bin/win_x64/plugins/TmpSettingsZh.dll`，拒绝覆盖无安装记录的既有 DLL。
+资源产物位于 `build/resources/`，原生模块产物位于 `build/native-settings-zh/`。更换字体或资源源码后，请使用新的输出目录，例如 `--output build/resources-v2`；后续验证、安装和恢复必须使用对应目录。构建工具拒绝覆盖内容不同的既有产物。
 
-恢复时仍需退出游戏与启动器，按安装顺序反向执行：
+安装工具检查进程、拒绝链接与重解析点、备份现有目标并核对写入哈希。手动流程的恢复记录和备份位于 `build/`，请保留。
+
+| 安装位置 | 声明的文件 |
+| --- | --- |
+| `data/shared_mod/` | `ui.mp`、`client.mp`、`OpenSans.ttf`、`OfflineFreightZH.ttf` |
+| `data/shared_mod/fonts/` | `OpenSans.ttf`、`OpenSans-Semibold.ttf`、`RobotoMono.ttf`、`OfflineFreightZH.ttf`、`TmpSettingsZH.ttf`、`TmpSettingsZH-Semibold.ttf`、`TmpFreightZH.ttf`、`TmpFreightZH-Semibold.ttf` |
+| ETS2 `bin/win_x64/plugins/` | `TmpSettingsZh.dll` |
+
+原始 `data/shared/` 文件保持不变。原生模块安装拒绝覆盖没有安装记录的既有 DLL。
+
+恢复时退出游戏和启动器，按安装顺序反向执行：
 
 ```powershell
 & $Python -B tools/native_settings_package.py restore --tmp-root $TmpRoot --game-root $GameRoot
 & $Python -B tools/resources.py restore --tmp-root $TmpRoot
 ```
 
-若使用了自定义 `--output`，后续验证、安装与恢复须传入同一个目录。
-目标文件或备份被其他程序修改时，恢复会停止并保留文件，不会强行覆盖。
-TMP 更新可能重置覆盖资源，可重新运行普通安装器检查并更新汉化。实验性 Settings 在客户端不匹配时会停用，需要单独适配。
+目标或备份被其他程序修改时，恢复会停止，不会强行覆盖。TMP 更新后可重新运行安装器检查并更新汉化；相关客户端结构变化时，原生功能需重新适配。
 
-## 目录与测试
+## 项目结构
 
-- `profiles/`：五页 Settings 词条、货运翻译、八个 UI 资源的差异和原生兼容检查；不包含完整客户端资源。
-- `src/settings_zh.cpp`：限制作用范围、版本与 ABI 校验的原生汉化模块。
-- `tools/`：本地资源变换、字符检查、构建配置生成、安装与恢复。
-- `tests/`：合成资源/事务测试，以及需要本机客户端输入生成夹具的原生测试。
-- `vendor/minhook/`：保留原许可证的 x64 MinHook 源码子集。
+| 路径 | 内容 |
+| --- | --- |
+| `profiles/` | 翻译词条、八个 UI 资源的差异、字库清单与兼容检查配置 |
+| `src/` | 原生汉化模块和玩家筛选逻辑 |
+| `ui/` | TAB 筛选的 Lua 界面扩展 |
+| `tools/` | 资源变换、字体处理、构建、安装与恢复工具 |
+| `tests/` | 合成资源、安装事务、Lua 与隔离原生检查 |
+| `vendor/minhook/` | 保留原许可证的 x64 MinHook 源码子集 |
+| [docs/FONTS.md](docs/FONTS.md) | 字体来源、许可、覆盖范围和图集验证 |
 
-历史独立提取验证：14 项资源/事务测试、9 项 Settings 安装恢复测试、1,069 项隔离原生检查均通过。
-图形安装器包含中断恢复、修改保护、并发锁、目录识别、跨版本升级和混合 cmap 检查。
-本版 53 项合成资源与安装器测试通过，包含 Settings 路径、兼容检查、升级、修改保护和中断恢复。
-隔离副本验证了客户端文件变化、增加资源条目、条目顺序移动、换行与注释变化，以及从 preview.1 直接更新并恢复首次安装前状态。
-独立 EXE 另在隔离目录完成实际构建、安装、重复安装和恢复，真实 TMP 源目录哈希保持不变。
-使用本机测试字体完成 369 个字符在四个字号下的 1,476 次栅格检查，以及货运映射的 348 次字形对照。
-字体检查结果取决于实际提供的字体。原生测试在独立进程内重定向客户端片段的外部调用，未加载 TMP DLL 或访问游戏进程。
-资源与事务测试可在不提供客户端文件的环境中运行；原生检查需本机提供指定客户端来生成隔离夹具。
-发布内容可用 `python -B tools/check_publish_scope.py` 核查，仅允许声明的汉化源码进入 Git。
+Git 仅包含声明的汉化源码，不包含完整客户端资源、官方二进制、生成的 DLL、机器码测试夹具或本机日志。
 
 ## 许可证
 
-原创代码与翻译数据采用 [MIT](LICENSE)。第三方组件及外部资源的权利边界见
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
-客户端派生资源、官方 DLL 与机器码测试夹具不随安装器分发。本项目的 Settings 汉化 DLL 随安装器提供。
-生成的开源派生字体只随安装器发布，适用各自 OFL 许可。
+原创代码与翻译数据采用 [MIT](LICENSE)。第三方组件、SDK、客户端资源和字体的权利边界见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+
+安装器分发本项目编译的原生汉化 DLL 和开源派生字体，不分发完整客户端资源、官方 DLL 或机器码测试夹具。派生字体适用各自的 SIL OFL 1.1 许可。

@@ -6,7 +6,7 @@ import subprocess
 from common import ROOT, require
 
 FILES = {
-    '.gitignore', '.gitattributes', 'README.md', 'LICENSE',
+    '.gitignore', '.gitattributes', 'README.md', 'README.en.md', 'LICENSE',
     'THIRD_PARTY_NOTICES.md', 'requirements-build.txt', 'build-settings-zh.ps1',
     'profiles/settings-zh-cn.json', 'profiles/resource-edits.json', 'profiles/freight-zh-cn.json',
     'profiles/settings-abi.json', 'tools/settings_compatibility.py', 'tools/installer_settings.py',
