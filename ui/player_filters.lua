@@ -15,7 +15,7 @@ do
         end
 
         local function hide()
-            bar:SetAttribute("style", "display: none;")
+            bar:SetAttribute("class", "")
         end
 
         local function current_filter()
@@ -31,7 +31,8 @@ do
                         "txt_button zh_filter_tab zh_filter_selected" or "txt_button zh_filter_tab")
                 end
             end
-            bar:SetAttribute("style", "display: flex;")
+            -- The online data binding owns inline display; readiness belongs in CSS.
+            bar:SetAttribute("class", "zh_filters_ready")
         end
 
         local function select_filter(name)

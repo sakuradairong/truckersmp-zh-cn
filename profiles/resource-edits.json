@@ -131,7 +131,7 @@
               "id": "players_query"
             }
           },
-          "text": "\n<div id=\"zh_player_filters\" style=\"display: none;\" data-if=\"online\">\n    <button id=\"zh_filter_all\" class=\"txt_button zh_filter_tab\" title=\"显示所有符合搜索的玩家\">全部</button>\n    <button id=\"zh_filter_friends\" class=\"txt_button zh_filter_tab\" title=\"按原生好友标记筛选\">好友</button>\n    <button id=\"zh_filter_company\" class=\"txt_button zh_filter_tab\" title=\"按原生同车队标记筛选\">车队</button>\n    <button id=\"zh_filter_staff\" class=\"txt_button zh_filter_tab\" title=\"TruckersMP 工作人员\">团队成员</button>\n    <span class=\"zh_filter_hint\">人数：匹配 / 搜索结果</span>\n</div>\n"
+          "text": "\n<div id=\"zh_player_filters\" data-if=\"online\">\n    <button id=\"zh_filter_all\" class=\"txt_button zh_filter_tab\" title=\"显示所有符合搜索的玩家\">全部</button>\n    <button id=\"zh_filter_friends\" class=\"txt_button zh_filter_tab\" title=\"按原生好友标记筛选\">好友</button>\n    <button id=\"zh_filter_company\" class=\"txt_button zh_filter_tab\" title=\"按原生同车队标记筛选\">车队</button>\n    <button id=\"zh_filter_staff\" class=\"txt_button zh_filter_tab\" title=\"TruckersMP 工作人员\">团队成员</button>\n    <span class=\"zh_filter_hint\">人数：匹配 / 搜索结果</span>\n</div>\n"
         }
       ]
     },
@@ -512,11 +512,19 @@
           "selector": "#zh_player_filters",
           "required": false,
           "properties": {
+            "display": "none",
             "flex-basis": "100%",
             "flex-shrink": "0",
             "align-items": "center",
             "flex-wrap": "wrap",
             "padding-top": "7dp"
+          }
+        },
+        {
+          "selector": "#zh_player_filters.zh_filters_ready",
+          "required": false,
+          "properties": {
+            "display": "flex"
           }
         },
         {
