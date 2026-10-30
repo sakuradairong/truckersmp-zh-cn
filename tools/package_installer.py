@@ -64,13 +64,13 @@ def build(assets):
     licenses = work / 'runtime-licenses'
     collect_licenses(licenses)
     version_file = work / 'version-info.txt'
-    version_file.write_text("""VSVersionInfo(ffi=FixedFileInfo(filevers=(0,3,0,4), prodvers=(0,3,0,4),
+    version_file.write_text("""VSVersionInfo(ffi=FixedFileInfo(filevers=(0,3,0,5), prodvers=(0,3,0,5),
 mask=0x3f, flags=2, OS=0x40004, fileType=0x1, subtype=0x0, date=(0,0)), kids=[
 StringFileInfo([StringTable('040904b0', [
 StringStruct('FileDescription', 'TruckersMP Simplified Chinese installer'),
-StringStruct('FileVersion', '0.3.0-preview.4'),
+StringStruct('FileVersion', '0.3.0-preview.5'),
 StringStruct('ProductName', 'TruckersMP ZH-CN'),
-StringStruct('ProductVersion', '0.3.0-preview.4'),
+StringStruct('ProductVersion', '0.3.0-preview.5'),
 StringStruct('LegalCopyright', 'MIT; bundled fonts under SIL OFL 1.1')])]),
 VarFileInfo([VarStruct('Translation', [1033,1200])])])""", encoding='utf-8')
     executable_name = 'TruckersMP-ZH-CN-Setup-' + backend.VERSION
@@ -79,7 +79,7 @@ VarFileInfo([VarStruct('Translation', [1033,1200])])])""", encoding='utf-8')
                '--distpath', str(ROOT / 'dist'), '--workpath', str(work / 'pyinstaller'),
                '--specpath', str(work), '--paths', str(ROOT / 'tools'), '--version-file', str(version_file)]
     data = [(ROOT / name, str(Path(name).parent)) for name in resources.SOURCES]
-    data.extend((ROOT / name, '.') for name in ('README.md', 'LICENSE', 'THIRD_PARTY_NOTICES.md'))
+    data.extend((ROOT / name, '.') for name in ('README.md', 'README.en.md', 'LICENSE', 'THIRD_PARTY_NOTICES.md'))
     data.append((ROOT / 'docs/FONTS.md', 'docs'))
     data.extend((assets / name, 'assets') for name in (*backend.FONT_FILES.values(), *backend.LICENSE_FILES,
                 'font-bundle.json', 'font-report.json'))
@@ -122,8 +122,10 @@ def package(executable, assets):
         '字体为 Noto 派生作品，适用 SIL OFL 1.1。版权声明和完整许可在附带文本及安装器“字体与许可”中。\n',
         encoding='utf-8', newline='\n')
     archive = folder / ('TruckersMP-ZH-CN-' + backend.VERSION + '-windows-x64.zip')
-    entries = [(executable, executable.name), (instructions, instructions.name), (ROOT / 'LICENSE', 'LICENSE'),
-               (ROOT / 'THIRD_PARTY_NOTICES.md', 'THIRD_PARTY_NOTICES.md'), (ROOT / 'docs/FONTS.md', 'FONTS.md')]
+    entries = [(executable, executable.name), (instructions, instructions.name),
+               (ROOT / 'README.md', 'README.md'), (ROOT / 'README.en.md', 'README.en.md'),
+               (ROOT / 'LICENSE', 'LICENSE'), (ROOT / 'THIRD_PARTY_NOTICES.md', 'THIRD_PARTY_NOTICES.md'),
+               (ROOT / 'docs/FONTS.md', 'docs/FONTS.md')]
     entries.extend((assets / name, 'licenses/' + name) for name in sorted(backend.LICENSE_FILES))
     with zipfile.ZipFile(archive, 'w', compression=zipfile.ZIP_DEFLATED, compresslevel=6) as output:
         for source, name in entries:

@@ -10,7 +10,7 @@ from installer_settings import SettingsStore, bundled as settings_bundle, game_d
 import settings_compatibility
 import resources
 
-VERSION = '0.3.0-preview.4'
+VERSION = '0.3.0-preview.5'
 FONT_FILES = {'regular': 'TMPZHSans-Regular.ttf', 'semibold': 'TMPZHSans-SemiBold.ttf', 'mono': 'TMPZHMono-Regular.ttf',
               'settings_regular': 'TmpSettingsZH.ttf', 'settings_semibold': 'TmpSettingsZH-Semibold.ttf',
               'freight_regular': 'TmpFreightZH.ttf', 'freight_semibold': 'TmpFreightZH-Semibold.ttf'}

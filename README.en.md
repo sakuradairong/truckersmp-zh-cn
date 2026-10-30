@@ -4,7 +4,7 @@
 
 An unofficial TruckersMP UI localization project for Windows x64 and Euro Truck Simulator 2, with Simplified Chinese interfaces, an offline graphical installer, and restore tools.
 
-Current source candidate: **0.3.0-preview.4**. Settings localization, dynamic freight text fixes, and TAB player filters require the experimental native module. In-game rendering, online compatibility, and performance still need validation.
+Current source candidate: **0.3.0-preview.5**. Settings localization, dynamic freight text fixes, and TAB player filters require the experimental native module. In-game rendering, online compatibility, and performance still need validation.
 
 ## Features
 
