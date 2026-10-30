@@ -1,6 +1,7 @@
 // Isolated process; never loads core_ets2mp.dll or opens the game process.
 #include "../src/settings_zh.cpp"
 #include "native_assign_fixture.h"
+#include "native_font_fixture.h"
 #include <cstdlib>
 #include <string>
 #include <vector>
@@ -34,6 +35,12 @@ Assign MakeAssignFixture() {
     return reinterpret_cast<Assign>(code);
 }
 void EmptyWide(NativeString& s) {s={};s.capacity=7;}
+template<class T,std::size_t N> T FontFixture(const unsigned char (&bytes)[N]) {
+    auto* code=static_cast<unsigned char*>(VirtualAlloc(nullptr,4096,MEM_RESERVE|MEM_COMMIT,PAGE_READWRITE));
+    Check(code!=nullptr,"native font fixture allocation");std::memcpy(code,bytes,N);
+    DWORD old;Check(VirtualProtect(code,4096,PAGE_EXECUTE_READ,&old)!=0,"native font fixture protection");
+    FlushInstructionCache(GetCurrentProcess(),code,4096);return reinterpret_cast<T>(code);
+}
 void DestroyWide(NativeString& s) {
     if(s.capacity>7){void* p=nullptr;std::memcpy(&p,s.storage,8);FixtureFree(p,0);}EmptyWide(s);
 }
@@ -64,17 +71,23 @@ void MockSetLabel(void* control,const void* source,bool resize) {
     DestroyNarrow(target->narrow);MakeNarrow(target->narrow,Narrow(&value->narrow));
 }
 struct FakeControl {
-    alignas(8) unsigned char data[0x228]{},child[0x168]{};
+    alignas(8) unsigned char data[0x228]{},child[0x190]{};
+    NativeFont font{};std::array<void*,3> textHead{};
     std::array<void*,3> head{};
     std::vector<std::array<void*,3>> nodes;
     FakeControl(const char* text,bool concreteLabel=true,const char* name="") {
         void* vt=core+(concreteLabel?kLabelVtable:0xdf01e0);
         *reinterpret_cast<void**>(data)=vt;*reinterpret_cast<void**>(data+0x150)=child;
+        *reinterpret_cast<void**>(child)=core+kTextVtable;
+        EmptyWide(font.name);nativeAssign(&font.name,L"OpenSans.ttf",12);font.size=14;
+        *reinterpret_cast<void**>(child+0x168)=&font;
+        textHead[0]=textHead.data();textHead[1]=textHead.data();
+        *reinterpret_cast<void**>(child+0x180)=textHead.data();
         new(child+0x128) Text(text);
         MakeNarrow(*reinterpret_cast<NativeString*>(data+0xd0),name);
         SetChildren({});
     }
-    void SetChildren(std::initializer_list<void*> values) {
+    void SetChildrenVector(const std::vector<void*>& values) {
         nodes.resize(values.size());unsigned i=0;
         for(void* value:values){nodes[i][2]=value;++i;}
         for(i=0;i<nodes.size();++i) {
@@ -84,8 +97,9 @@ struct FakeControl {
         head[0]=nodes.empty()?head.data():nodes.front().data();head[1]=nodes.empty()?head.data():nodes.back().data();
         *reinterpret_cast<void**>(data+0x58)=head.data();*reinterpret_cast<std::size_t*>(data+0x60)=nodes.size();
     }
+    void SetChildren(std::initializer_list<void*> values) {SetChildrenVector(std::vector<void*>(values));}
     const wchar_t* Value(){return Wide(child+0x128);}
-    ~FakeControl(){reinterpret_cast<Text*>(child+0x128)->~Text();DestroyNarrow(*reinterpret_cast<NativeString*>(data+0xd0));}
+    ~FakeControl(){reinterpret_cast<Text*>(child+0x128)->~Text();DestroyWide(font.name);DestroyNarrow(*reinterpret_cast<NativeString*>(data+0xd0));}
 };
 void CheckPair(const Pair& pair,unsigned kind) {
     Text text(pair.en);NativeString before=text.narrow;
@@ -106,6 +120,25 @@ void FillGuards(unsigned char* image) {
     for(const auto& l:kLiterals)std::memcpy(image+l.source,l.text.en,std::strlen(l.text.en)+1);
 }
 void StubBuild(void*){}
+void TestNativeFontMeasurement() {
+    using Measure=void*(*)(void*,void*,void*,void*);
+    auto measure=FontFixture<Measure>(kMeasureCode);
+    std::vector<unsigned char> atlas(0x12+0xffff*0x16);
+    const auto glyph=[&](unsigned cp,unsigned advance) {
+        auto* p=atlas.data()+0x12+cp*0x16;*p=1;
+        const auto width=static_cast<unsigned short>(advance);std::memcpy(p+0x12,&width,2);
+    };
+    glyph('?',7);glyph(0x8bbe,14);glyph(0x7f6e,14);
+    NativeFont font{};font.data=atlas.data();font.size=14;
+    NativeString text;EmptyWide(text);nativeAssign(&text,L"设置",2);
+    struct {int width,height;} result{};
+    Check(measure(nullptr,&result,&font,&text)==&result&&result.width==28,
+          "exact native metrics body reads both Chinese BMP glyphs");
+    atlas[0x12+0x8bbe*0x16]=0;
+    measure(nullptr,&result,&font,&text);
+    Check(result.width==21,"exact native missing-glyph branch substitutes question mark");
+    DestroyWide(text);
+}
 int StubRender(void*,void*,int x,int y,int width) {Check(x==0x131&&y==10&&width==0xf0,"render parameters forwarded");return 30;}
 void TestScopesAndDescriptor() {
     const Row& row=kRows[3]; // Job sharing privacy, with a tooltip and enum.
@@ -199,6 +232,20 @@ void TestAlreadyCreatedWindow() {
     Check(NarrowIs(footer.data+0xd0,"settings_cancel"),"footer action identifier retained");
     Check(WideIsEnglish(editable.child+0x128,row.label.en),"editable user text excluded even with equal English content");
     Check(WideIsEnglish(staffLabel.child+0x128,row.label.en),"unrequested Staff page excluded");
+    Check(PointerAt(label.child,0x168)!=&label.font,"translated label gets compact native font");
+    Check(PointerAt(editable.child,0x168)==&editable.font&&PointerAt(staffLabel.child,0x168)==&staffLabel.font,
+          "editable fields and excluded pages retain original fonts");
+    Check(WideIsChinese(&static_cast<NativeFont*>(PointerAt(label.child,0x168))->name,kSettingsFont),
+          "native font name resolves to the dedicated compact asset");
+    Check(label.child[0x179]==1,"exact native setter marks font metrics dirty");
+    FakeControl scaled(row.label.en);scaled.font.size=21;scaled.font.bold=1;
+    Check(TranslateDisplay(scaled.data,row.label,0),"scaled bold Settings label translated");
+    const auto* scaledFont=static_cast<NativeFont*>(PointerAt(scaled.child,0x168));
+    Check(scaledFont->size==21&&scaledFont->bold==1&&WideIsChinese(&scaledFont->name,kSettingsBoldFont),
+          "font binding preserves scaled size and bold style");
+    FakeControl prior(row.label.en);nativeAssign(prior.child+0x128,row.label.zh,std::wcslen(row.label.zh));
+    Check(TranslateDisplay(prior.data,row.label,0)&&PointerAt(prior.child,0x168)!=&prior.font,
+          "already-translated constructor text still receives compact font");
     Check(!std::wcscmp(privateItem.Value(),L"仅自己")&&!std::wcscmp(friendsItem.Value(),L"仅 Steam 好友")&&!std::wcscmp(publicItem.Value(),L"公开"),"already-created menu items refreshed in order");
     Check(!std::wcscmp(combo.Value(),L"公开"),"selected option caption refreshed");
     Check(PointerAt(combo.data,0x208)==publicItem.data,"selected native item pointer retained");
@@ -210,10 +257,64 @@ void TestAlreadyCreatedWindow() {
     reinterpret_cast<Text*>(descriptor+8)->~Text();reinterpret_cast<Text*>(descriptor+0x48)->~Text();
     DestroyNarrow(*reinterpret_cast<NativeString*>(pages+0x20));DestroyNarrow(*reinterpret_cast<NativeString*>(pages+0x68+0x20));
 }
+void* insertedItem=nullptr;
+const void* expectedDisplay=nullptr;
+const void* expectedIdentifier=nullptr;
+void* StubFreightInsert(void*,const void* display,const void* identifier) {
+    Check(display==expectedDisplay&&identifier==expectedIdentifier,"freight display and identifier forwarded unchanged");
+    return insertedItem;
+}
+void TestFreightFonts() {
+    alignas(8) unsigned char owner[0xc8]{};
+    *reinterpret_cast<void**>(owner)=core+kFreightVtable;
+    FakeControl* controls[7]{};
+    for(unsigned i=0;i<7;++i) {
+        controls[i]=new FakeControl("Dynamic cargo",false,kFreightNames[i]);
+        *reinterpret_cast<void**>(owner+0x30+i*8)=controls[i]->data;
+    }
+    FakeControl menu("",false),inner("",false),oldItem("Old city",false),newItem("New city",false);
+    *reinterpret_cast<void**>(controls[0]->data+0x1e0)=menu.data;
+    *reinterpret_cast<void**>(menu.data+0x70)=inner.data;
+    std::vector<FakeControl*> oldCities;
+    std::vector<void*> menuItems{oldItem.data};
+    for(unsigned i=0;i<300;++i) {
+        auto* item=new FakeControl("Existing city",false);oldCities.push_back(item);menuItems.push_back(item->data);
+    }
+    inner.SetChildrenVector(menuItems);
+    originalFreightUpdate=&StubBuild;originalFreightDestroy=&StubBuild;
+    originalFreightComboItem=&StubFreightInsert;originalFreightAutocompleteItem=&StubFreightInsert;
+    HookFreightUpdate(owner);
+    for(auto* control:controls) {
+        auto* font=static_cast<NativeFont*>(PointerAt(control->child,0x168));
+        Check(font!=&control->font&&WideIsChinese(&font->name,kFreightFont),"seven owned dynamic controls bind compact freight font");
+        Check(WideIsEnglish(control->child+0x128,"Dynamic cargo"),"freight font binding never changes display text");
+    }
+    Check(PointerAt(oldItem.child,0x168)!=&oldItem.font,"pre-existing autocomplete popup row gets compact font");
+    Check(PointerAt(oldCities.back()->child,0x168)!=&oldCities.back()->font,
+          "late-loaded freight lists larger than 256 rows are fully bound");
+    Text display("New city"),identifier("internal_cargo_id");
+    expectedDisplay=&display;expectedIdentifier=&identifier;insertedItem=newItem.data;
+    Check(HookFreightAutocompleteItem(controls[0]->data,&display,&identifier)==newItem.data,"autocomplete insertion return retained");
+    Check(PointerAt(newItem.child,0x168)!=&newItem.font&&NarrowIs(&identifier.narrow,"internal_cargo_id"),
+          "new autocomplete row bound without changing internal identifier");
+    FakeControl foreign("Foreign",false,"trailers"),foreignItem("Foreign item",false);
+    insertedItem=foreignItem.data;HookFreightComboItem(foreign.data,&display,&identifier);
+    Check(PointerAt(foreignItem.child,0x168)==&foreignItem.font,"same-name control outside registered freight window excluded");
+    FakeControl comboItem("Trailer",false);insertedItem=comboItem.data;
+    HookFreightComboItem(controls[5]->data,&display,&identifier);
+    Check(PointerAt(comboItem.child,0x168)!=&comboItem.font,"new combo row bound");
+    auto* selected=comboItem.data;*reinterpret_cast<void**>(controls[5]->data+0x208)=selected;
+    HookFreightUpdate(owner);
+    Check(PointerAt(controls[5]->data,0x208)==selected,"selected freight item identity retained across update");
+    HookFreightDestroy(owner);
+    Check(freightOwner==nullptr&&!FreightRegistered(controls[0]->data),"window destructor invalidates freight registrations");
+    for(auto* control:controls)delete control;
+    for(auto* item:oldCities)delete item;
+}
 } // namespace
 
 int Run(int argc,char** argv) {
-    nativeAssign=MakeAssignFixture();enabled=true;
+    nativeAssign=MakeAssignFixture();nativeSetFont=FontFixture<SetFont>(kSetFontCode);enabled=true;
     core=static_cast<unsigned char*>(VirtualAlloc(nullptr,kImageSize,MEM_RESERVE|MEM_COMMIT,PAGE_READWRITE));
     Check(core!=nullptr,"fake image allocation");
     Check(!VerifyImage(),"unknown image disabled");FillGuards(core);Check(VerifyImage(),"reviewed code and structure guard accepted");
@@ -263,14 +364,17 @@ int Run(int argc,char** argv) {
     Text title("Settings");Check(ConversionText(&title.narrow,0x32f2de)==&kWindow,"window title routed");
     windowScope=false;Check(!ConversionText(&title.narrow,0x32f2de),"other windows excluded");
     TestScopesAndDescriptor();
+    TestNativeFontMeasurement();
     TestAlreadyCreatedWindow();
+    TestFreightFonts();
     Text unknown("My Player 公开");Check(!TranslateText(&unknown,kRows[0].label,0),"player-owned text unchanged");
     Text disabled(kRows[0].label.en);enabled=false;Check(!TranslateText(&disabled,kRows[0].label,0),"disabled adapter forwards unchanged");
     enabled=true;
-    // MinHook must relocate all eight reviewed prologues without enabling them.
+    // MinHook must relocate all reviewed prologues without enabling them.
     DWORD old;Check(VirtualProtect(core,kImageSize,PAGE_EXECUTE_READWRITE,&old)!=0,"fake code protection");
     Check(MH_Initialize()==MH_OK,"isolated MinHook initialized");
-    for(unsigned rva:{0x13d110u,0x13de20u,0x13e130u,0x13e860u,0xf0310u,0xef4f0u,0xf0210u,0x13da10u}) {
+    for(unsigned rva:{0x13d110u,0x13de20u,0x13e130u,0x13e860u,0xf0310u,0xef4f0u,0xf0210u,0x13da10u,
+                      0xfc300u,0xfc260u,0x3304f0u,0x331700u}) {
         void* original=nullptr;Check(MH_CreateHook(core+rva,reinterpret_cast<void*>(&HookCString),&original)==MH_OK,"reviewed native prologue trampoline");
         Check(original!=nullptr,"trampoline produced");Check(MH_RemoveHook(core+rva)==MH_OK,"unarmed test hook removed");
     }
@@ -293,9 +397,11 @@ int Run(int argc,char** argv) {
 }
 int main(int argc,char** argv) {
     Run(argc,argv);
+    for(auto& slot:settingsFonts)if(slot.used){DestroyWide(slot.font.name);slot.used=false;}
+    for(auto& slot:freightFonts)if(slot.used){DestroyWide(slot.font.name);slot.used=false;}
     Check(allocated==released,"all native fixture/string allocations released by the same allocator");
     VirtualFree(core,0,MEM_RELEASE);VirtualFree(reinterpret_cast<void*>(nativeAssign),0,MEM_RELEASE);
-    std::printf("PASS: %u checks; reviewed wide-assign, 52 labels/27 tooltips, late-load refresh, scoped options, identifiers, guards, eight trampolines, SCS-only DLL.\n",checks);
+    std::printf("PASS: %u checks; Settings/freight, native ownership, lifecycle, guards, twelve trampolines, SCS-only DLL.\n",checks);
     std::printf("No game/TMP process was started or attached; in-game validation remains outstanding.\n");
     if(argc>=3) {
         FILE* report=nullptr;fopen_s(&report,argv[2],"wb");Check(report!=nullptr,"test report output");

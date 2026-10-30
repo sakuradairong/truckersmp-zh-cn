@@ -53,7 +53,7 @@ class InstallerApp:
         ttk.Label(card, text='Tab 玩家面板、列表与右键菜单\n公交调度窗口、货运窗口的静态标题和按钮',
                   style='Card.TLabel', justify='left').pack(anchor='w', pady=(9, 7))
         ttk.Label(card, text='中文字体已包含；无需安装 Python 或自行寻找字体。', style='Card.TLabel').pack(anchor='w')
-        self.settings_check = ttk.Checkbutton(card, text='同时安装 Settings 五页汉化（实验性）',
+        self.settings_check = ttk.Checkbutton(card, text='同时安装 Settings 汉化、货运中文修复（实验性）',
             variable=self.include_settings, command=self.check_path)
         self.settings_check.pack(anchor='w', pady=(8, 0))
         ttk.Label(frame, text='TMP 安装目录', font=('Microsoft YaHei UI', 10, 'bold')).pack(anchor='w', pady=(19, 6))
@@ -229,7 +229,8 @@ class InstallerApp:
         path = self.path.get().strip()
         game, selected = self.game_path.get().strip(), self.include_settings.get()
         self.status.set('正在准备安装…')
-        message = '汉化安装完成（含 Settings 五页模块）。请重启 TMP 后检查设置页。' if selected else '资源汉化已安装 / 检查完成；本次未安装 Settings。'
+        message = ('汉化安装完成（含 Settings、货运中文修复）。请重启 TMP 后检查。' if selected else
+                   '静态资源汉化已安装 / 检查完成；货运中文修复需勾选原生模块。')
         self.run(lambda: backend.install(path, self.assets, self.state_root, self.progress_message,
                                          game_root=game, include_settings=selected),
                  lambda result: self.finished(path, message), refresh_on_error=True)

@@ -109,6 +109,27 @@ class Recovery(PrivateTree):
         reopened.restore(); self.assert_before()
         self.assertEqual(reopened.status()['state'], 'restored')
 
+    def test_preview2_receipt_upgrades_and_keeps_first_restore_point(self):
+        self.install('0.3.0-preview.2')
+        package, receipt = self.store.current()
+        for name in resources.FREIGHT_FONTS:
+            row = receipt['files'].pop(name)
+            target = self.tmp / name
+            if row['previous_sha256'] is None:
+                target.unlink()
+            else:
+                target.write_bytes((package / 'backups' / self.store.backup_name(name)).read_bytes())
+        atomic_json(package / 'receipt.json', receipt)
+        self.assertEqual(self.store.status()['state'], 'installed')
+        def verify_rebuilt(*args, **kwargs):
+            if 'font_paths' in kwargs:
+                raise ValueError('old package schema')
+            return {'files': self.files}
+        with patch.object(resources, 'verify', side_effect=verify_rebuilt):
+            self.assertEqual(self.install('0.3.0-preview.3')['state'], 'installed')
+        self.store.restore()
+        self.assert_before()
+
     def test_unknown_client_can_still_restore(self):
         self.install()
         with patch.object(resources, 'check_compatibility', side_effect=ValueError('Incompatible resource')):
@@ -224,6 +245,23 @@ class Recovery(PrivateTree):
         self.assertEqual(receipt['version'], 'fixture-2')
         self.assertEqual({name: row['previous_sha256'] for name, row in receipt['files'].items()}, self.before)
         self.assertTrue((older / 'backups' / Store.backup_name(resources.OUTPUTS[1])).is_file())
+        self.store.restore(); self.assert_before()
+
+    def test_eight_file_receipt_upgrades_with_new_fonts_and_keeps_originals(self):
+        with patch.object(resources, 'OUTPUTS', resources.LEGACY_OUTPUTS):
+            self.install('older-eight-files')
+        older, receipt = self.store.current()
+        self.assertEqual(set(receipt['files']), set(resources.LEGACY_OUTPUTS))
+        with self.old_package_requires_rebuild(older):
+            self.assertEqual(self.install('with-compact-fonts')['state'], 'installed')
+        _, receipt = self.store.current()
+        self.assertEqual(set(receipt['files']), set(resources.OUTPUTS))
+        self.assertEqual({n: r['previous_sha256'] for n, r in receipt['files'].items()}, self.before)
+        self.store.restore(); self.assert_before()
+
+    def test_eight_file_receipt_can_restore_without_touching_new_font_paths(self):
+        with patch.object(resources, 'OUTPUTS', resources.LEGACY_OUTPUTS):
+            self.install('older-eight-files')
         self.store.restore(); self.assert_before()
 
     def test_incompatible_upgrade_keeps_the_existing_installation(self):

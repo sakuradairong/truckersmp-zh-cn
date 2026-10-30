@@ -10,8 +10,10 @@ from installer_settings import SettingsStore, bundled as settings_bundle, game_d
 import settings_compatibility
 import resources
 
-VERSION = '0.3.0-preview.1'
-FONT_FILES = {'regular': 'TMPZHSans-Regular.ttf', 'semibold': 'TMPZHSans-SemiBold.ttf', 'mono': 'TMPZHMono-Regular.ttf'}
+VERSION = '0.3.0-preview.3'
+FONT_FILES = {'regular': 'TMPZHSans-Regular.ttf', 'semibold': 'TMPZHSans-SemiBold.ttf', 'mono': 'TMPZHMono-Regular.ttf',
+              'settings_regular': 'TmpSettingsZH.ttf', 'settings_semibold': 'TmpSettingsZH-Semibold.ttf',
+              'freight_regular': 'TmpFreightZH.ttf', 'freight_semibold': 'TmpFreightZH-Semibold.ttf'}
 LICENSE_FILES = {'NotoSansSC-OFL.txt', 'NotoSansMono-OFL.txt'}
 
 
@@ -122,7 +124,9 @@ def install(tmp_root, assets=None, state_root=None, progress=lambda message: Non
                 'An interrupted Settings operation must be restored first')
         game_root = game_root or status['settings'].get('game_root')
     fonts = bundled_fonts(assets)
-    result = Store(tmp_root, state_root).install(fonts['regular'], fonts['semibold'], fonts['mono'], VERSION, progress)
+    result = Store(tmp_root, state_root).install(fonts['regular'], fonts['semibold'], fonts['mono'], VERSION, progress,
+                                               settings_fonts=(fonts['settings_regular'], fonts['settings_semibold']),
+                                               freight_fonts=(fonts['freight_regular'], fonts['freight_semibold']))
     if include_settings:
         try:
             result['settings'] = SettingsStore(tmp_root, state_root).install(game_root, assets, VERSION, progress)

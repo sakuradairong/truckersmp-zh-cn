@@ -41,7 +41,10 @@ def run(directory, source=None, assets=None):
         baseline[name] = digest(target) if target.exists() else None
     state = directory / '持久恢复记录'
     store = Store(clone, state, processes=lambda: [])
-    result = store.install(fonts['regular'], fonts['semibold'], fonts['mono'], backend.VERSION)
+    settings_fonts = (fonts['settings_regular'], fonts['settings_semibold'])
+    freight_fonts = (fonts['freight_regular'], fonts['freight_semibold'])
+    result = store.install(fonts['regular'], fonts['semibold'], fonts['mono'], backend.VERSION,
+                           settings_fonts=settings_fonts, freight_fonts=freight_fonts)
     require(result['state'] == 'installed' and store.status()['state'] == 'installed', 'Installation self-test failed')
     native = SettingsStore(clone, state, processes=lambda: [])
     native_result = native.install(game, assets, backend.VERSION)
@@ -52,7 +55,8 @@ def run(directory, source=None, assets=None):
     package, receipt = store.current()
     require(all(store.actual(name) == row['installed_sha256'] for name, row in receipt['files'].items()),
             'Installed self-test bytes differ')
-    again = store.install(fonts['regular'], fonts['semibold'], fonts['mono'], backend.VERSION)
+    again = store.install(fonts['regular'], fonts['semibold'], fonts['mono'], backend.VERSION,
+                          settings_fonts=settings_fonts, freight_fonts=freight_fonts)
     require(again['state'] == 'already_installed', 'Idempotence self-test failed')
     require(native.install(game, assets, backend.VERSION)['state'] == 'already_installed',
             'Settings idempotence self-test failed')

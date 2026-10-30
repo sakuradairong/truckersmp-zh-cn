@@ -78,7 +78,9 @@ class Store:
         require(receipt.get('schema') == 1 and receipt.get('package') == 'tmpzh-installer' and
                 receipt.get('tmp_root') == str(self.tmp_root) and receipt.get('transaction') == transaction and
                 receipt.get('state') in ('applying', 'installed', 'restoring', 'restored') and
-                set(receipt.get('files', {})) == set(resources.OUTPUTS), 'Invalid installation receipt scope')
+                set(receipt.get('files', {})) in (set(resources.OUTPUTS), set(resources.PRE_FREIGHT_OUTPUTS),
+                                                set(resources.LEGACY_OUTPUTS)),
+                'Invalid installation receipt scope')
         for row in receipt['files'].values():
             require(isinstance(row, dict) and set(row) == {'previous_sha256', 'installed_sha256'},
                     'Invalid installation receipt row')
@@ -113,7 +115,7 @@ class Store:
         return dict(state=state, can_restore=receipt['state'] != 'restored', version=receipt.get('version', ''),
                     backup_directory=str(package / 'backups'))
 
-    def install(self, font_regular, font_semibold, font_mono, version, progress=lambda message: None):
+    def install(self, font_regular, font_semibold, font_mono, version, progress=lambda message: None, *, settings_fonts=None, freight_fonts=None):
         with self.lock():
             closed(self.processes)
             package, previous = self.current()
@@ -122,7 +124,9 @@ class Store:
                 require(all(self.actual(name) == row['installed_sha256'] for name, row in previous['files'].items()),
                         'Localization target changed; restore or resolve changes first')
                 try:
-                    resources.verify(self.tmp_root, package, font_paths=(font_regular, font_semibold, font_mono))
+                    resources.verify(self.tmp_root, package, font_paths=(font_regular, font_semibold, font_mono) +
+                                     (tuple(settings_fonts) if settings_fonts else ()) +
+                                     (tuple(freight_fonts) if freight_fonts else ()))
                 except (ValueError, OSError):
                     pass  # Rebuild changed resources/fonts or an older package schema before touching targets.
                 else:
@@ -132,7 +136,8 @@ class Store:
             package.mkdir(parents=True)
             progress('正在检查中文字体并准备汉化文件…')
             resources.build(self.tmp_root, Path(font_regular), package,
-                            semibold=Path(font_semibold), mono=Path(font_mono))
+                            semibold=Path(font_semibold), mono=Path(font_mono), settings_fonts=settings_fonts,
+                            freight_fonts=freight_fonts)
             manifest = resources.verify(self.tmp_root, package)
             closed(self.processes)
             if previous is not None and previous['state'] == 'installed':

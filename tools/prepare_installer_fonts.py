@@ -16,6 +16,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 from common import ROOT, atomic_json, digest, plain, read_json, require, sha
 import check_characters
+import native_font_atlas
 
 
 def fetch_inputs(folder, profile, fetch):
@@ -159,6 +160,77 @@ def prepare(output, inputs, fetch=False):
     atomic_json(output / 'font-report.json', report)
     atomic_json(output / 'font-bundle.json', dict(schema=1, files=bundle_files))
     preview(fonts, output / 'font-preview.png')
+    return prepare_settings(output, inputs)
+
+
+def freight_face(output, semibold, inputs):
+    """Build native freight faces, including Latin glyphs absent from Noto SC."""
+    profile = read_json(ROOT / 'profiles/font-sources.json')
+    sources = fetch_inputs(inputs, profile, False)
+    needed = native_font_atlas.freight_characters()
+    weight, style = (600, 'SemiBold') if semibold else (400, 'Regular')
+    primary = instantiate(sources['NotoSansSC'], weight, 'TMPZH Freight', style)
+    fallback = instantiate(sources['NotoSansMono'], weight, 'TMPZH Freight', style)
+    primary_points = needed & set(primary.getBestCmap())
+    missing = needed - primary_points
+    require(missing <= set(fallback.getBestCmap()), 'Freight fallback is missing characters')
+    scratch = output / 'font-work'
+    scratch.mkdir(exist_ok=True)
+    parts = []
+    for name, font, points in (('freight-main', primary, primary_points),
+                                ('freight-fallback', fallback, missing)):
+        if not points:
+            continue
+        options = subset.Options(); options.recalc_timestamp = False
+        options.name_IDs = ['*']; options.name_legacy = True; options.name_languages = ['*']
+        job = subset.Subsetter(options=options); job.populate(unicodes=points); job.subset(font)
+        for tag in ('vhea', 'vmtx', 'BASE'):
+            if tag in font:
+                del font[tag]
+        path = scratch / (name + '-' + style + '.ttf')
+        font.save(path); parts.append(str(path))
+    merged = Merger().merge(parts) if len(parts) > 1 else TTFont(parts[0], recalcTimestamp=False)
+    merged = name_font(merged, 'TMPZH Freight', style, weight)
+    merged['name'].setName('\n'.join(dict.fromkeys(font['name'].getDebugName(0) or ''
+                           for font in (primary, fallback))), 0, 3, 1, 0x409)
+    merged.recalcTimestamp = False
+    merged['head'].created = primary['head'].created
+    merged['head'].modified = primary['head'].modified
+    result = io.BytesIO(); merged.save(result, reorderTables=True)
+    return ttfautohint.ttfautohint(in_buffer=result.getvalue(), no_info=True,
+                                  windows_compatibility=True, epoch=1704067200)
+
+
+def prepare_settings(output, inputs=None):
+    """Derive small native-only faces; keep every existing full font unchanged."""
+    bundle = read_json(output / 'font-bundle.json')
+    for name, expected in bundle['files'].items():
+        require(digest(plain(output / name)) == expected, 'Existing font bundle differs: ' + name)
+    report = read_json(output / 'font-report.json')
+    prepared = {}
+    for role, source, name, bold in (
+            ('settings_regular', 'TMPZHSans-Regular.ttf', native_font_atlas.FONT_NAMES[0], False),
+            ('settings_semibold', 'TMPZHSans-SemiBold.ttf', native_font_atlas.FONT_NAMES[1], True),
+            ('freight_regular', 'TMPZHSans-Regular.ttf', native_font_atlas.FREIGHT_FONT_NAMES[0], False),
+            ('freight_semibold', 'TMPZHSans-SemiBold.ttf', native_font_atlas.FREIGHT_FONT_NAMES[1], True)):
+        freight = role.startswith('freight_')
+        data = (freight_face(output, bold, inputs or ROOT / 'inputs/open-fonts') if freight else
+                native_font_atlas.compact((output / source).read_bytes(), bold))
+        check = (native_font_atlas.validate(data, native_font_atlas.FREIGHT_SIZES,
+                  needed=native_font_atlas.freight_characters()) if freight else native_font_atlas.validate(data))
+        prepared[name] = data
+        check.update(weight=600 if bold else 400, codepoints=check['characters'],
+                     bytes=len(data), variable=False, sha256=sha(data))
+        report['fonts'][role] = check
+        bundle['files'][name] = sha(data)
+    report['native_settings_atlas_limit'] = [1024, 1024]
+    # Capacity/coverage failures must leave the last sealed bundle intact.
+    for name, data in prepared.items():
+        temporary = output / (name + '.prepared')
+        temporary.write_bytes(data)
+        temporary.replace(output / name)
+    atomic_json(output / 'font-report.json', report)
+    atomic_json(output / 'font-bundle.json', bundle)
     return report
 
 
@@ -189,8 +261,10 @@ def main():
     parser.add_argument('--inputs', type=Path, default=ROOT / 'inputs/open-fonts')
     parser.add_argument('--output', type=Path, default=ROOT / 'build/installer-assets')
     parser.add_argument('--fetch', action='store_true')
+    parser.add_argument('--settings-only', action='store_true', help='Reuse verified full fonts; rebuild only native Settings faces')
     args = parser.parse_args()
-    report = prepare(args.output.absolute(), args.inputs.absolute(), args.fetch)
+    report = (prepare_settings(args.output.absolute(), args.inputs.absolute()) if args.settings_only else
+              prepare(args.output.absolute(), args.inputs.absolute(), args.fetch))
     print(json.dumps({key: {k: value[k] for k in ('weight', 'codepoints', 'bytes', 'variable')}
                       for key, value in report['fonts'].items()}, indent=2))
 

@@ -11,17 +11,23 @@ import archive
 import check_characters
 import font_cmap as fonts
 import resource_text
+import native_font_atlas
 from common import (ROOT, atomic_json, digest, plain,
                     read_json, require, sha, write_output)
 
 FONT_NAME = 'OfflineFreightZH.ttf'
 INPUTS = ('data/shared/ui.mp', 'data/shared/client.mp')
 FONT_ALIASES = ('OpenSans.ttf', 'fonts/OpenSans.ttf', 'fonts/OpenSans-Semibold.ttf', 'fonts/RobotoMono.ttf')
-OUTPUTS = ('data/shared_mod/ui.mp', 'data/shared_mod/client.mp',
+LEGACY_OUTPUTS = ('data/shared_mod/ui.mp', 'data/shared_mod/client.mp',
            *(f'data/shared_mod/{name}' for name in (*FONT_ALIASES, FONT_NAME, 'fonts/' + FONT_NAME)))
+SETTINGS_FONTS = tuple('data/shared_mod/fonts/' + name for name in native_font_atlas.FONT_NAMES)
+PRE_FREIGHT_OUTPUTS = LEGACY_OUTPUTS + SETTINGS_FONTS
+FREIGHT_FONTS = tuple('data/shared_mod/fonts/' + name for name in native_font_atlas.FREIGHT_FONT_NAMES)
+OUTPUTS = PRE_FREIGHT_OUTPUTS + FREIGHT_FONTS
 SOURCES = ('tools/resources.py', 'tools/archive.py', 'tools/font_cmap.py', 'tools/common.py',
            'tools/check_characters.py', 'profiles/resource-edits.json', 'profiles/freight-zh-cn.json',
-           'profiles/settings-zh-cn.json', 'tools/resource_text.py')
+           'profiles/settings-zh-cn.json', 'tools/resource_text.py', 'tools/native_font_atlas.py',
+           'profiles/freight-characters.json')
 UI_NAMES = {'player_panel.rml', 'player_list.rml', 'player_panel.rcss', 'player_context_menu.rml',
             'bus_job_dispatcher.rml', 'bus_job_dispatcher.rcss', 'bus_job_dispatcher.lua'}
 FREIGHT_PATH = 0xc3895edbd485993e
@@ -39,6 +45,28 @@ FREIGHT_TARGETS = (
     ('CheckBoxWithLabel', 'takeJob', 'Take the job immediately'),
     ('CheckBoxWithLabel', 'navigateToCompany', 'Navigate to the company'),
     ('GroupBox', '', 'Job Information'), ('GroupBox', '', 'Urgency'))
+FREIGHT_DYNAMIC = {'sourceCities': 'Autocomplete', 'sourceCompanies': 'ComboBox',
+    'targetCities': 'Autocomplete', 'targetCompanies': 'ComboBox', 'cargos': 'Autocomplete',
+    'trailers': 'ComboBox', 'urgency': 'ComboBox'}
+
+
+def check_freight_dynamic(source):
+    require(isinstance(source, dict) and isinstance(source.get('Controls'), dict),
+            'Incompatible freight: invalid dynamic control root')
+    found = set()
+    def visit(node):
+        require(isinstance(node, dict) and isinstance(node.get('Properties', {}), dict) and
+                isinstance(node.get('Children', []), list), 'Incompatible freight: invalid dynamic control tree')
+        name = node.get('Properties', {}).get('ControlName', '')
+        if name in FREIGHT_DYNAMIC:
+            require(name not in found and node.get('Type') == FREIGHT_DYNAMIC[name],
+                    'Incompatible freight: ambiguous or changed dynamic control ' + name)
+            found.add(name)
+        for child in node.get('Children', []):
+            visit(child)
+    visit(source['Controls'])
+    require(found == set(FREIGHT_DYNAMIC),
+            'Incompatible freight: missing dynamic controls ' + repr(sorted(set(FREIGHT_DYNAMIC) - found)))
 
 
 def inputs(tmp_root):
@@ -58,7 +86,7 @@ def localized_ui(source):
     profile = read_json(ROOT / 'profiles/resource-edits.json')
     require(profile['schema'] == 2, 'Unknown resource profile schema')
     entries = profile['ui_entries']
-    require(len(entries) == 7 and {entry['name'] for entry in entries} == UI_NAMES and
+    require(len(entries) == 8 and {entry['name'] for entry in entries} == UI_NAMES and
             len({entry['path_hash'] for entry in entries}) == len(entries),
             'Unexpected UI translation scope')
     rows = archive.parse(source)
@@ -84,6 +112,7 @@ def check_compatibility(tmp_root):
     _, row = freight_row(originals['data/shared/client.mp'])
     translations = read_json(ROOT / 'profiles/freight-zh-cn.json')
     freight_candidate(json.loads(row['raw']), translations, make_codebook(translations))
+    check_freight_dynamic(json.loads(row['raw']))
     return originals
 
 
@@ -107,7 +136,10 @@ def remap_font(font_data, codebook):
                 for _, _, mapping, _ in mappings), 'Font Unicode maps disagree')
     replacements = {ord(token): baseline[ord(char)] for char, token in codebook.items()}
     updated = dict(tables)
-    updated[b'cmap'] = fonts.remapped_cmap(tables[b'cmap'], replacements)
+    # This face is used only by encoded static captions. Retaining the original
+    # CJK cmap makes the native renderer preload thousands of unused glyphs.
+    printable = set(range(32, 127))
+    updated[b'cmap'] = fonts.remapped_cmap(tables[b'cmap'], replacements, codepoints=printable)
     updated[b'name'] = fonts.renamed_names(tables[b'name'])
     data = fonts.repack(updated)
     saved = fonts.tables_from(data)
@@ -120,6 +152,7 @@ def remap_font(font_data, codebook):
     require(old_head == new_head, 'Unexpected font head change')
     for old, new in zip(mappings, fonts.unicode_cmaps(saved[b'cmap'])):
         expected = dict(old[2]); expected.update(replacements)
+        expected = {cp: glyph for cp, glyph in expected.items() if cp in printable}
         require(new[2] == expected, 'Unexpected cmap change')
     checks = 0
     for size in (11, 14, 18, 21):
@@ -172,7 +205,7 @@ def freight_candidate(source, translations, codebook):
     return result, captions
 
 
-def build(tmp_root, font_path, output, *, semibold=None, mono=None):
+def build(tmp_root, font_path, output, *, semibold=None, mono=None, settings_fonts=None, freight_fonts=None):
     plain(tmp_root); plain(font_path)
     output = plain(output, missing=True)
     require(not output.is_relative_to(tmp_root.absolute()), 'Build output cannot be inside the TMP installation')
@@ -195,23 +228,49 @@ def build(tmp_root, font_path, output, *, semibold=None, mono=None):
     client_source = originals['data/shared/client.mp']
     client_rows, row = freight_row(client_source)
     source_tree = json.loads(row['raw'])
+    check_freight_dynamic(source_tree)
     candidate, captions = freight_candidate(source_tree, translations, codebook)
     payload = (json.dumps(candidate, ensure_ascii=True, indent=2) + '\n').encode('ascii')
     client = archive.repack(client_source, len(client_rows), {row['index']: payload})
     data = {'data/shared_mod/ui.mp': ui, 'data/shared_mod/client.mp': client}
     data.update({f'data/shared_mod/{name}': content for name, content in alias_fonts.items()})
     data.update({f'data/shared_mod/{name}': remapped_font for name in (FONT_NAME, 'fonts/' + FONT_NAME)})
+    atlas_checks = {'data/shared_mod/fonts/' + FONT_NAME:
+        native_font_atlas.validate(remapped_font, needed=set(range(32, 127)))}
+    require(settings_fonts is None or len(settings_fonts) == 2, 'Expected two Settings font faces')
+    for index, relative in enumerate(SETTINGS_FONTS):
+        if settings_fonts is None:
+            source = font_data if index == 0 else alias_fonts['fonts/OpenSans-Semibold.ttf']
+            content = native_font_atlas.compact(source, bool(index))
+        else:
+            path = plain(Path(settings_fonts[index]))
+            content = path.read_bytes(); font_inputs[path] = content
+        atlas_checks[relative] = native_font_atlas.validate(content)
+        data[relative] = content
+    require(freight_fonts is None or len(freight_fonts) == 2, 'Expected two freight font faces')
+    for index, relative in enumerate(FREIGHT_FONTS):
+        if freight_fonts is None:
+            source = font_data if index == 0 else alias_fonts['fonts/OpenSans-Semibold.ttf']
+            content = native_font_atlas.compact(source, bool(index),
+                characters=native_font_atlas.freight_characters(), family='TMPZH Freight', postscript='TMPZHFreight')
+        else:
+            path = plain(Path(freight_fonts[index]))
+            content = path.read_bytes(); font_inputs[path] = content
+        atlas_checks[relative] = native_font_atlas.validate(content, native_font_atlas.FREIGHT_SIZES,
+            needed=native_font_atlas.freight_characters())
+        data[relative] = content
     require(set(data) == set(OUTPUTS), 'Unexpected output file scope')
     # Re-read all installed inputs before writing only local build outputs.
     require(inputs(tmp_root) == originals, 'Resource input changed while building; retry with the client closed')
     require(all(path.read_bytes() == content for path, content in font_inputs.items()), 'Font changed while building')
     for relative, content in data.items():
         write_output(output / 'files' / relative, content)
-    manifest = dict(schema=2, package='truckersmp-zh-cn-resources',
+    manifest = dict(schema=3, package='truckersmp-zh-cn-resources',
                     inputs={name: sha(content) for name, content in originals.items()},
                     files={name: sha(content) for name, content in data.items()},
                     source_files={name: digest(ROOT / name) for name in SOURCES},
                     character_checks=character_checks, freight_glyph_rasters=raster_checks,
+                    native_font_atlas=atlas_checks,
                     freight_static_captions=captions, game_started=False,
                     live_validation='Public extraction verified offline; native Settings not verified in-game.')
     atomic_json(output / 'package.json', manifest)
@@ -223,16 +282,26 @@ def build(tmp_root, font_path, output, *, semibold=None, mono=None):
 def verify(tmp_root, output, *, font_paths=None):
     plain(output)
     manifest = read_json(output / 'package.json')
-    require(manifest['schema'] == 2 and manifest['package'] == 'truckersmp-zh-cn-resources' and
+    require(manifest['schema'] == 3 and manifest['package'] == 'truckersmp-zh-cn-resources' and
             set(manifest['inputs']) == set(INPUTS), 'Unknown resource package')
     require(set(manifest['files']) == set(OUTPUTS) and set(manifest['source_files']) == set(SOURCES),
             'Unexpected package scope')
     for relative, expected in manifest['files'].items():
         require(digest(plain(output / 'files' / relative)) == expected, 'Package file differs: ' + relative)
     if font_paths is not None:
-        for alias, path in zip(('OpenSans.ttf', 'fonts/OpenSans-Semibold.ttf', 'fonts/RobotoMono.ttf'), font_paths):
+        require(len(font_paths) in (3, 5, 7), 'Unexpected font input scope')
+        for alias, path in zip(('OpenSans.ttf', 'fonts/OpenSans-Semibold.ttf', 'fonts/RobotoMono.ttf',
+                                *('fonts/' + n for n in native_font_atlas.FONT_NAMES),
+                                *('fonts/' + n for n in native_font_atlas.FREIGHT_FONT_NAMES)), font_paths):
             require(digest(plain(Path(path))) == manifest['files']['data/shared_mod/' + alias],
                     'Font input changed; rebuild the localization')
+    require(manifest.get('native_font_atlas') == {
+        'data/shared_mod/fonts/' + FONT_NAME: native_font_atlas.validate(
+            (output / 'files/data/shared_mod/fonts' / FONT_NAME).read_bytes(), needed=set(range(32, 127))),
+        **{name: native_font_atlas.validate((output / 'files' / name).read_bytes()) for name in SETTINGS_FONTS},
+        **{name: native_font_atlas.validate((output / 'files' / name).read_bytes(), native_font_atlas.FREIGHT_SIZES,
+             needed=native_font_atlas.freight_characters()) for name in FREIGHT_FONTS}},
+        'Native Settings atlas checks differ')
     for relative, expected in manifest['source_files'].items():
         require(digest(ROOT / relative) == expected, 'Source changed; rebuild: ' + relative)
     originals = inputs(tmp_root)

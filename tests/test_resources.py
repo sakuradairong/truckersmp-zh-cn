@@ -53,6 +53,15 @@ class ArchiveChecks(unittest.TestCase):
 
 
 class TranslationChecks(unittest.TestCase):
+    def test_dynamic_font_scope_requires_unique_expected_controls(self):
+        children = [dict(Type=kind, Properties=dict(ControlName=name))
+                    for name, kind in resources.FREIGHT_DYNAMIC.items()]
+        resources.check_freight_dynamic(dict(Controls=dict(Children=children)))
+        for changed in (children[:-1], children + children[:1],
+                        [dict(Type='TextBox', Properties=dict(ControlName='sourceCities'))] + children[1:]):
+            with self.assertRaisesRegex(ValueError, 'Incompatible freight'):
+                resources.check_freight_dynamic(dict(Controls=dict(Children=changed)))
+
     def test_text_targets_survive_newlines_attributes_and_unrelated_additions(self):
         entry = dict(name='synthetic.rml', edits=[dict(selector={'attrs': {'id': 'caption'}},
                      source='Hello world', text='你好')])

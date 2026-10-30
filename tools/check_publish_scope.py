@@ -23,6 +23,8 @@ FILES = {
     'vendor/minhook/src/hde/pstdint.h', 'vendor/minhook/src/hde/table64.h',
     'build-installer.ps1', 'requirements-installer.txt', 'docs/FONTS.md',
     'profiles/font-sources.json', 'tools/prepare_installer_fonts.py',
+    'tools/native_font_atlas.py', 'tests/test_native_font_atlas.py',
+    'profiles/freight-characters.json',
     'tools/installer_store.py', 'tools/installer_backend.py', 'tools/installer_gui.py',
     'tools/installer_selftest.py', 'tools/package_installer.py',
     'tests/test_font_cmap.py', 'tests/test_installer.py',

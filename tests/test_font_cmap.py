@@ -40,6 +40,12 @@ class UnicodeCmaps(unittest.TestCase):
             with self.assertRaises(ValueError):
                 cmap.read_cmap12(data)
 
+    def test_static_ascii_face_prunes_unicode_but_retains_other_records(self):
+        source = mixed_cmap()
+        result = cmap.remapped_cmap(source, {65: 7}, codepoints=set(range(32, 127)))
+        self.assertEqual(cmap.cmap_records(source)[2:], cmap.cmap_records(result)[2:])
+        self.assertTrue(all(row[2] == {65: 7} for row in cmap.unicode_cmaps(result)))
+
     def test_truncated_cmap_directory_and_offsets_are_rejected(self):
         for data in (b'', b'\0\0\0\x01', struct.pack('>HHHHI', 0, 1, 0, 3, 9999)):
             with self.assertRaises(ValueError):

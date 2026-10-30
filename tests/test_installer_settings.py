@@ -170,7 +170,7 @@ class Installation(unittest.TestCase):
 
     def test_backend_installs_both_components_and_restores_settings_before_fonts(self):
         with patch.object(backend, 'Store') as resource_type, patch.object(backend.resources, 'check_compatibility', return_value={}), patch.object(
-                backend, 'bundled_fonts', return_value={key: self.assets / DLL for key in ('regular', 'semibold', 'mono')}), patch.object(
+                backend, 'bundled_fonts', return_value={key: self.assets / DLL for key in backend.FONT_FILES}), patch.object(
                 backend, 'SettingsStore', return_value=self.store):
             store = resource_type.return_value
             store.status.return_value = dict(state='not_installed', can_restore=False)
@@ -185,11 +185,12 @@ class Installation(unittest.TestCase):
             store.restore.side_effect = restore_fonts
             backend.restore(self.tmp, self.state)
             store.install.assert_called_once()
+            self.assertEqual(store.install.call_args.kwargs['settings_fonts'], (self.assets / DLL, self.assets / DLL))
             store.restore.assert_called_once()
 
     def test_backend_reports_partial_install_instead_of_full_success(self):
         with patch.object(backend, 'Store') as resource_type, patch.object(backend.resources, 'check_compatibility', return_value={}), patch.object(
-                backend, 'bundled_fonts', return_value={key: self.assets / DLL for key in ('regular', 'semibold', 'mono')}), patch.object(
+                backend, 'bundled_fonts', return_value={key: self.assets / DLL for key in backend.FONT_FILES}), patch.object(
                 SettingsStore, 'install', side_effect=ValueError('synthetic Settings write failure')):
             resource_type.return_value.status.return_value = dict(state='not_installed', can_restore=False)
             resource_type.return_value.install.return_value = dict(state='installed')

@@ -9,6 +9,8 @@
 #include <cstdio>
 #include <cstring>
 #include <cwchar>
+#include <cmath>
+#include <initializer_list>
 #include "MinHook.h"
 #include "scssdk_telemetry.h"
 #include "settings_profile.h"
@@ -24,6 +26,23 @@ using Build = void (*)(void*);
 using Assign = void* (*)(void*,const wchar_t*,std::size_t);
 using SetLabel = void (*)(void*,const void*,bool);
 using DestroyText = void (*)(void*);
+using SetFont = void (*)(void*,void*);
+struct NativeFont {
+    NativeString name; float size; unsigned char bold, padding[3]; void* data; unsigned char extra[8];
+};
+static_assert(sizeof(NativeFont)==0x38 && offsetof(NativeFont,data)==0x28);
+struct FontSlot {bool used=false;NativeFont font{};};
+FontSlot settingsFonts[32]; // Process lifetime: this DLL and its forwarding hooks are pinned.
+FontSlot freightFonts[32];
+using AddItem = void* (*)(void*,const void*,const void*);
+AddItem originalFreightComboItem=nullptr, originalFreightAutocompleteItem=nullptr;
+Build originalFreightUpdate=nullptr;
+Build originalFreightDestroy=nullptr;
+void* freightOwner=nullptr;
+void* freightControls[7]{};
+unsigned freightOffsets[7]{};
+std::atomic<bool> freightEnabled{true};
+SetFont nativeSetFont=nullptr;
 Construct originalCString=nullptr, originalString=nullptr, originalConvert=nullptr;
 Render originalLabel=nullptr, originalCombo=nullptr;
 Build originalWindow=nullptr, originalPage=nullptr;
@@ -189,9 +208,40 @@ bool DisplayIs(void* control,const Pair& pair) {
     void* text=DisplayText(control);
     return text&&(WideIsEnglish(text,pair.en)||WideIsChinese(text,pair.zh));
 }
+bool BindFont(void* control,bool freight=false) {
+    if(!nativeSetFont||!nativeAssign)return false;
+    void* child=PointerAt(control,0x150);
+    if(!Readable(child,0x190)||PointerAt(child,0)!=core+kTextVtable)return false;
+    auto* source=static_cast<NativeFont*>(PointerAt(child,0x168));
+    if(!Readable(source,sizeof(NativeFont))||!Wide(&source->name)||
+       !std::isfinite(source->size)||source->size<4||source->size>(freight?21:48)||source->bold>1)return false;
+    auto& slots=freight?freightFonts:settingsFonts;
+    for(auto& slot:slots)if(slot.used&&source==&slot.font)return true;
+    FontSlot* selected=nullptr;
+    for(auto& slot:slots)if(slot.used&&slot.font.size==source->size&&slot.font.bold==source->bold&&
+        !std::memcmp(slot.font.extra,source->extra,4)){selected=&slot;break;}
+    if(!selected)for(auto& slot:slots)if(!slot.used) {
+        slot.font=*source;slot.font.name={};slot.font.name.capacity=7;slot.font.data=nullptr;
+        const wchar_t* name=freight?(source->bold?kFreightBoldFont:kFreightFont):
+                                    (source->bold?kSettingsBoldFont:kSettingsFont);
+        nativeAssign(&slot.font.name,name,std::wcslen(name));
+        slot.used=true;selected=&slot;break;
+    }
+    if(!selected)return false;
+    // Native setter marks metrics dirty and retains the original font size/style.
+    // Only a text control already identified by the Settings translation path reaches here.
+    nativeSetFont(child,&selected->font);
+    static bool observed[2]{};
+    if(!observed[freight]){observed[freight]=true;Log(freight?
+        "observed: compact freight font selected; native atlas budget checked at 11/14/18/21px":
+        "observed: compact Settings font selected; native atlas budget checked through 48px");}
+    return true;
+}
+bool BindSettingsFont(void* control) {return BindFont(control);}
 bool TranslateDisplay(void* control,const Pair& pair,unsigned kind) {
     void* text=DisplayText(control);
-    if(!text||!WideIsEnglish(text,pair.en))return false;
+    if(!text||(!WideIsEnglish(text,pair.en)&&!WideIsChinese(text,pair.zh))||!BindSettingsFont(control))return false;
+    if(WideIsChinese(text,pair.zh))return true;
     TemporaryText translated(pair.en);
     if(!TranslateText(translated.data,pair,kind))return false;
     // false keeps the outer control's bounds; the client's setter updates text metrics.
@@ -217,6 +267,96 @@ bool Children(void* control,void** output,unsigned& count,bool semantic=false) {
         output[count++]=PointerAt(node,16);node=PointerAt(node,0);
     }
     return node==list.head;
+}
+constexpr const char* kFreightNames[]={"sourceCities","sourceCompanies","targetCities",
+    "targetCompanies","cargos","trailers","urgency"};
+bool FreightRegistered(void* control) {
+    if(!enabled.load()||!freightEnabled.load()||
+       PointerAt(freightOwner,0)!=core+kFreightVtable)return false;
+    for(unsigned i=0;i<7;++i)if(freightControls[i]==control&&
+        NarrowIs(static_cast<unsigned char*>(control)+0xd0,kFreightNames[i])) {
+        // A destroyed/replaced window must not leave a usable stale registration.
+        for(unsigned offset=0x30;offset<=0xc0;offset+=8)
+            if(PointerAt(freightOwner,offset)==control)return true;
+    }
+    return false;
+}
+void BindFreightMenu(void* menu) {
+    if(!menu)return;
+    for(unsigned depth=0;depth<8;++depth) {
+        void* inner=PointerAt(menu,0x70);
+        if(!inner)break;
+        if(inner==menu||depth==7)return;
+        menu=inner;
+    }
+    if(!Readable(menu,0x68))return;
+    ChildList list{};std::memcpy(&list,static_cast<unsigned char*>(menu)+0x58,sizeof list);
+    if(list.size>8192||!Readable(list.head,24))return;
+    void* node=PointerAt(list.head,0);
+    for(std::size_t i=0;i<list.size;++i) {
+        if(node==list.head||!Readable(node,24))return;
+        BindFont(PointerAt(node,16),true);
+        node=PointerAt(node,0);
+    }
+}
+void RefreshFreight(void* owner) {
+    if(!enabled.load()||!freightEnabled.load()||
+       PointerAt(owner,0)!=core+kFreightVtable||!Readable(owner,0xc8))return;
+    if(owner==freightOwner) {
+        bool same=true;
+        for(unsigned i=0;i<7;++i)if(PointerAt(owner,freightOffsets[i])!=freightControls[i])same=false;
+        if(same)return; // Menu insertions are covered by their own hooks; no per-frame tree walk.
+    }
+    void* found[7]{};
+    unsigned offsets[7]{};
+    for(unsigned offset=0x30;offset<=0xc0;offset+=8) {
+        void* control=PointerAt(owner,offset);
+        if(!Readable(control,0x158))continue;
+        for(unsigned i=0;i<7;++i)if(NarrowIs(static_cast<unsigned char*>(control)+0xd0,kFreightNames[i])) {
+            if(found[i]&&found[i]!=control)return;
+            found[i]=control;offsets[i]=offset;
+        }
+    }
+    for(void* control:found)if(!control)return;
+    freightOwner=owner;std::memcpy(freightControls,found,sizeof found);
+    std::memcpy(freightOffsets,offsets,sizeof offsets);
+    for(unsigned i=0;i<7;++i) {
+        BindFont(found[i],true);
+        BindFreightMenu(PointerAt(found[i],i==0||i==2||i==4?0x1e0:0x200));
+    }
+}
+void SafeFreightRefresh(void* owner) {
+    __try {RefreshFreight(owner);}
+    __except(GetExceptionCode()==EXCEPTION_ACCESS_VIOLATION?EXCEPTION_EXECUTE_HANDLER:EXCEPTION_CONTINUE_SEARCH) {
+        freightEnabled=false;Log("inactive: freight control access guard; original calls retained");
+    }
+}
+void SafeFreightInserted(void* control,void* item) {
+    __try {if(FreightRegistered(control)){BindFont(control,true);BindFont(item,true);}}
+    __except(GetExceptionCode()==EXCEPTION_ACCESS_VIOLATION?EXCEPTION_EXECUTE_HANDLER:EXCEPTION_CONTINUE_SEARCH) {
+        freightEnabled=false;Log("inactive: freight item access guard; original calls retained");
+    }
+}
+void HookFreightUpdate(void* owner) {
+    // This native controller update also covers a window constructed before the
+    // SCS loader armed our hooks. All seven named controls must belong to it.
+    SafeFreightRefresh(owner);
+    originalFreightUpdate(owner);
+}
+void HookFreightDestroy(void* owner) {
+    if(owner==freightOwner) {
+        freightOwner=nullptr;std::memset(freightControls,0,sizeof freightControls);
+        std::memset(freightOffsets,0,sizeof freightOffsets);
+    }
+    originalFreightDestroy(owner);
+}
+void* HookFreightComboItem(void* control,const void* display,const void* identifier) {
+    void* item=originalFreightComboItem(control,display,identifier);
+    SafeFreightInserted(control,item);return item;
+}
+void* HookFreightAutocompleteItem(void* control,const void* display,const void* identifier) {
+    void* item=originalFreightAutocompleteItem(control,display,identifier);
+    SafeFreightInserted(control,item);return item;
 }
 void RefreshPageTree(void* content,unsigned page) {
     void* pending[1024]{};unsigned used=1,visited=0;pending[0]=content;
@@ -340,10 +480,24 @@ bool VerifyImage() {
 void Attach(HMODULE module) {
     core=reinterpret_cast<unsigned char*>(module);
     if(!VerifyImage()){Log("inactive: loaded TMP code/ABI guard mismatch");return;}
+    wchar_t fontPath[MAX_PATH];
+    DWORD pathSize=GetModuleFileNameW(module,fontPath,MAX_PATH);
+    if(!pathSize||pathSize>=MAX_PATH)return;
+    wchar_t* slash=std::wcsrchr(fontPath,L'\\');
+    if(!slash)return;
+    for(const wchar_t* suffix:{L"data\\shared_mod\\fonts\\TmpSettingsZH.ttf",L"data\\shared_mod\\fonts\\TmpSettingsZH-Semibold.ttf",
+                              L"data\\shared_mod\\fonts\\TmpFreightZH.ttf",L"data\\shared_mod\\fonts\\TmpFreightZH-Semibold.ttf"}) {
+        if(wcscpy_s(slash+1,MAX_PATH-(slash+1-fontPath),suffix))return;
+        const DWORD attributes=GetFileAttributesW(fontPath);
+        if(attributes==INVALID_FILE_ATTRIBUTES||(attributes&FILE_ATTRIBUTE_DIRECTORY)) {
+            Log("inactive: compact Settings font missing; update resource localization with this installer");return;
+        }
+    }
     HMODULE pinned=nullptr;
     if(!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS|GET_MODULE_HANDLE_EX_FLAG_PIN,reinterpret_cast<LPCWSTR>(module),&pinned))return;
     nativeAssign=reinterpret_cast<Assign>(core+0x81fe0);
     nativeSetLabel=reinterpret_cast<SetLabel>(core+0x336bc0);
+    nativeSetFont=reinterpret_cast<SetFont>(core+0x3374c0);
     nativeDestroyText=reinterpret_cast<DestroyText>(core+0xef630);
     if(MH_Initialize()!=MH_OK){Log("inactive: private MinHook initialization failed");return;}
     struct HookSpec {unsigned rva;void* detour;void** original;};
@@ -356,6 +510,10 @@ void Attach(HMODULE module) {
         {0xef4f0,reinterpret_cast<void*>(&HookString),reinterpret_cast<void**>(&originalString)},
         {0xf0210,reinterpret_cast<void*>(&HookConvert),reinterpret_cast<void**>(&originalConvert)}
         ,{0x13da10,reinterpret_cast<void*>(&HookShow),reinterpret_cast<void**>(&originalShow)}
+        ,{0xfc300,reinterpret_cast<void*>(&HookFreightUpdate),reinterpret_cast<void**>(&originalFreightUpdate)}
+        ,{0xfc260,reinterpret_cast<void*>(&HookFreightDestroy),reinterpret_cast<void**>(&originalFreightDestroy)}
+        ,{0x3304f0,reinterpret_cast<void*>(&HookFreightComboItem),reinterpret_cast<void**>(&originalFreightComboItem)}
+        ,{0x331700,reinterpret_cast<void*>(&HookFreightAutocompleteItem),reinterpret_cast<void**>(&originalFreightAutocompleteItem)}
     };
     unsigned created=0;
     for(const auto& hook:hooks) {

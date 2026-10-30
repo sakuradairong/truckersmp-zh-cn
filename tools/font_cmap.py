@@ -147,7 +147,7 @@ def cmap4_from(mapping, language):
     array = lambda values: struct.pack(">" + "H" * len(values), *values)
     return header + array(ends) + b"\0\0" + array(starts) + array(deltas) + array(ranges) + array(glyphs)
 
-def remapped_cmap(source, replacements):
+def remapped_cmap(source, replacements, *, codepoints=None):
     # Validate the supported Unicode maps, while retaining legacy and variation tables byte-for-byte.
     unicode_cmaps(source)
     records = cmap_records(source)
@@ -158,6 +158,8 @@ def remapped_cmap(source, replacements):
         if (platform == 0 or (platform == 3 and encoding in (1, 10))) and fmt in (4, 12):
             mapping, language = read_cmap4(raw, 0) if fmt == 4 else read_cmap12(raw)
             mapping.update(replacements)
+            if codepoints is not None:
+                mapping = {cp: glyph for cp, glyph in mapping.items() if cp in codepoints}
             subtable = cmap4_from(mapping, language) if fmt == 4 else cmap12_from(mapping, language)
         directory.extend(struct.pack(">HHI", platform, encoding, 4 + 8 * len(records) + len(payload)))
         payload.extend(subtable)

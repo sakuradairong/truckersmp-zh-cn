@@ -18,7 +18,9 @@ OUT = ROOT / 'build/native-settings-zh'
 CORE = None
 HOOKS = [('window', 0x13d110), ('page', 0x13de20), ('label', 0x13e130),
          ('combo', 0x13e860), ('cstring', 0xf0310), ('string', 0xef4f0),
-         ('convert', 0xf0210), ('show', 0x13da10)]
+         ('convert', 0xf0210), ('show', 0x13da10), ('freight-update', 0xfc300),
+         ('freight-destroy', 0xfc260),
+         ('freight-combo-item', 0x3304f0), ('freight-autocomplete-item', 0x331700)]
 
 
 def require(test, message):
@@ -104,6 +106,13 @@ def main():
     guard('native-wide-assign', 0x81fe0, 0x144)
     guard('native-text-destroy', 0xef630, 0x1f)
     guard('native-label-set', 0x336bc0, 32)
+    guard('native-text-font-set', 0x3374c0, 0x71)
+    guard('native-font-layout', 0x163b40, 0x5b)
+    guard('native-font-cache-layout', 0x126cc0, 0x2b3)
+    guard('native-font-measure', 0x127100, 0x116)
+    guard('freight-control-layout', 0xfb220, 0xff5)
+    guard('freight-combo-item-layout', 0x3304f0, 0x2bd)
+    guard('freight-autocomplete-item-layout', 0x331700, 0x3b0)
     guard('native-name-getter', 0x15d5d0, 8)
     guard('native-children-getter', 0x15eb50, 0x18)
     guard('native-tooltip-getter', 0x15fd20, 8)
@@ -127,6 +136,12 @@ def main():
              f'inline constexpr unsigned kImageSize = 0x{p.OPTIONAL_HEADER.SizeOfImage:x};',
              'inline constexpr unsigned kComboVtable = 0xdd8330;',
              'inline constexpr unsigned kLabelVtable = 0xdf2450;',
+             'inline constexpr unsigned kTextVtable = 0xdf2ab8;',
+             'inline constexpr unsigned kFreightVtable = 0xdccab0;',
+             'inline constexpr wchar_t kSettingsFont[] = L"TmpSettingsZH.ttf";',
+             'inline constexpr wchar_t kSettingsBoldFont[] = L"TmpSettingsZH-Semibold.ttf";',
+             'inline constexpr wchar_t kFreightFont[] = L"TmpFreightZH.ttf";',
+             'inline constexpr wchar_t kFreightBoldFont[] = L"TmpFreightZH-Semibold.ttf";',
              'struct Pair { const char* en; const wchar_t* zh; };',
              'struct Row { unsigned page; Pair label; Pair tooltip; };',
              'struct Literal { unsigned caller, source; Pair text; };',
@@ -200,6 +215,16 @@ def main():
     fixture += [f'{{0x{o:x}, 0x{t:x}}},' for o,t in calls]
     fixture += ['};']
     (OUT / 'native_assign_fixture.h').write_text('\n'.join(fixture)+'\n', encoding='utf-8')
+    fixture = ['#pragma once']
+    for name, start, end in [('SetFont', 0x3374c0, 0x337531), ('Measure', 0x127100, 0x127216)]:
+        for i in instructions(start, end):
+            require(not any(op.type == capstone.CS_OP_MEM and op.mem.base == X86_REG_RIP for op in i.operands),
+                    'Unexpected external font fixture data')
+            if i.mnemonic == 'call' and i.operands[0].type == capstone.CS_OP_IMM:
+                require(start <= i.operands[0].imm-base < end, 'Unexpected external font fixture call')
+        fixture.append('inline constexpr unsigned char k'+name+'Code[] = {'+
+                       ','.join(f'0x{x:02x}' for x in p.get_data(start,end-start))+'};')
+    (OUT / 'native_font_fixture.h').write_text('\n'.join(fixture)+'\n', encoding='utf-8')
     print(json.dumps({k:report[k] for k in ('labels','tooltips','static_caption_occurrences','option_groups','option_occurrences')}, ensure_ascii=False))
 
 

@@ -1,4 +1,4 @@
-"""Install/restore only the eight declared localization resources, with backups."""
+"""Install/restore only the declared localization resources, with backups."""
 from __future__ import annotations
 import json
 import os
@@ -8,13 +8,15 @@ import uuid
 from common import active_apps, atomic_json, closed, digest, plain, read_json, require, write_output
 
 
-def targets(tmp_root, output):
-    from resources import OUTPUTS
+def targets(tmp_root, output, names=None):
+    from resources import OUTPUTS, LEGACY_OUTPUTS, PRE_FREIGHT_OUTPUTS
     tmp_root = plain(tmp_root)
     output = plain(output)
     require(not output.is_relative_to(tmp_root), 'Package cannot be inside the installation')
     result = {}
-    for relative in OUTPUTS:
+    require(names is None or set(names) in (set(OUTPUTS), set(PRE_FREIGHT_OUTPUTS), set(LEGACY_OUTPUTS)),
+            'Unknown resource target scope')
+    for relative in (OUTPUTS if names is None else (n for n in OUTPUTS if n in names)):
         target = plain(tmp_root / relative, missing=True)
         require(target.is_relative_to(tmp_root), 'Target escapes the TMP directory')
         require(not target.exists() or target.is_file(), 'Target is not a regular file')
@@ -118,7 +120,8 @@ def install(tmp_root, output, processes=active_apps):
 def restore(tmp_root, output, processes=active_apps):
     require(os.name == 'nt', 'Installer requires Windows rename semantics')
     tmp_root, output = Path(tmp_root).absolute(), Path(output).absolute()
-    paths = targets(tmp_root, output)
+    prior = read_json(plain(output / 'installed-resources.json'))
+    paths = targets(tmp_root, output, prior.get('files', {}))
     receipt = receipt_for(tmp_root, output, paths)
     rows = receipt['files']
     closed(processes)

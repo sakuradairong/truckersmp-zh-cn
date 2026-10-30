@@ -612,6 +612,72 @@
       "rva": 1380607,
       "size": 5,
       "sha256": "d31f8ca87ca4a3ea408fb3274e1292df7990893551266a79fa8b815963336113"
+    },
+    {
+      "name": "native-text-font-set",
+      "rva": 3372224,
+      "size": 113,
+      "sha256": "c92141d8922cffe6a7995a24561b2f8a623e3f124b44a71722dfd704e681affc"
+    },
+    {
+      "name": "native-font-layout",
+      "rva": 1456960,
+      "size": 91,
+      "sha256": "d4eb9b70bbb4dc64360bc4639275f212fa17082167a8bef717e6c75f5b0e5e23"
+    },
+    {
+      "name": "native-font-cache-layout",
+      "rva": 1207488,
+      "size": 691,
+      "sha256": "001e1dcd04a1e9ec0c96401276aae89f178fe3fe59d7ea6c8eb5a9fd0b9c8c6f"
+    },
+    {
+      "name": "native-font-measure",
+      "rva": 1208576,
+      "size": 278,
+      "sha256": "1ef3a05d4432b6a12e02e4597d665179eb24bb40390cb69081a055e80210111c"
+    },
+    {
+      "name": "freight-update",
+      "rva": 1032960,
+      "size": 32,
+      "sha256": "bf664cfbb784b039714c9d8a8b12ffc6084c47363a8827573f55f631cba58e88"
+    },
+    {
+      "name": "freight-combo-item",
+      "rva": 3343600,
+      "size": 32,
+      "sha256": "0772da647f6f3336114c054ee59c8a6870ba5b540a29914c97d0db122f2f4076"
+    },
+    {
+      "name": "freight-autocomplete-item",
+      "rva": 3348224,
+      "size": 32,
+      "sha256": "a656fd312526899c966de163395b39d269674d93ffb76c7c3d19709122d0c372"
+    },
+    {
+      "name": "freight-control-layout",
+      "rva": 1028640,
+      "size": 4085,
+      "sha256": "8bd2e58419c9f0c8592c6e30dd50763fe96ec8405aa8226a0f3c7a8620b2250f"
+    },
+    {
+      "name": "freight-combo-item-layout",
+      "rva": 3343600,
+      "size": 701,
+      "sha256": "660916f58da84968af295154931449d5fd1c492d80f0f4099ed5c87432000980"
+    },
+    {
+      "name": "freight-autocomplete-item-layout",
+      "rva": 3348224,
+      "size": 944,
+      "sha256": "abce5f7e1de84b067ff12edf493423138e22d571c0925317c0336ccb6d48d791"
+    },
+    {
+      "name": "freight-destroy",
+      "rva": 1032800,
+      "size": 32,
+      "sha256": "0b42e5c11ace1716987ede64629377d66ed8a017f465c49fbf6eeec3498f9d0a"
     }
   ],
   "pointers": [
