@@ -81,7 +81,8 @@ class PlayerFilterLua(unittest.TestCase):
     def test_all_tabs_preserve_original_search_and_history_callbacks(self):
         lua = self.runtime()
         self.assertEqual(lua.eval('elements.zh_player_filters.attributes.style'), 'display: flex;')
-        for index, name in enumerate(('all', 'friends', 'company', 'staff')):
+        for name in ('friends', 'company', 'staff', 'all'):
+            index = ('all', 'friends', 'company', 'staff').index(name)
             lua.execute('elements.players.scroll_top=450')
             lua.execute('elements.zh_filter_' + name + ':fire("click")')
             self.assertEqual(lua.eval('mode'), index)
@@ -90,7 +91,7 @@ class PlayerFilterLua(unittest.TestCase):
             self.assertEqual(lua.eval('elements.search.value'), 'keep query')
         lua.execute('elements.players.scroll_top=90; elements.toggle_history:fire("click")')
         self.assertEqual(lua.eval('history_clicks'), 1)
-        self.assertEqual(lua.eval('mode'), 3)
+        self.assertEqual(lua.eval('mode'), 0)
         self.assertEqual(lua.eval('elements.players.scroll_top'), 0)
         lua.execute('elements.players.scroll_top=90; elements.search:fire("change")')
         self.assertEqual(lua.eval('search_clicks'), 1)
@@ -108,8 +109,35 @@ class PlayerFilterLua(unittest.TestCase):
     def test_existing_native_mode_restored_when_document_opens(self):
         lua = self.runtime('mode=1')
         self.assertIn('zh_filter_selected', lua.eval('elements.zh_filter_friends.attributes.class'))
+        self.assertEqual(lua.eval('elements.players.scroll_top'), 217)
+        self.assertEqual(lua.eval('#mode_calls'), 0)
         lua.execute('ready=0; document:fire("show")')
         self.assertEqual(lua.eval('elements.zh_player_filters.attributes.style'), 'display: none;')
+
+    def test_reopening_and_late_refresh_preserve_scroll_without_refiltering(self):
+        lua = self.runtime('mode=2')
+        lua.execute('elements.players.scroll_top=450; document:fire("show")')
+        self.assertEqual(lua.eval('elements.players.scroll_top'), 450)
+        lua.execute('PlayerPanel.ZHRefreshFilterTabs()')
+        self.assertEqual(lua.eval('elements.players.scroll_top'), 450)
+        self.assertEqual(lua.eval('#mode_calls'), 0)
+        self.assertEqual(lua.eval('elements.search.value'), 'keep query')
+        self.assertIn('zh_filter_selected', lua.eval('elements.zh_filter_company.attributes.class'))
+
+    def test_clicking_active_filter_preserves_scroll(self):
+        lua = self.runtime('mode=1')
+        lua.execute('elements.players.scroll_top=450; elements.zh_filter_friends:fire("click")')
+        self.assertEqual(lua.eval('elements.players.scroll_top'), 450)
+        self.assertEqual(lua.eval('#mode_calls'), 0)
+
+    def test_invalid_restored_filter_hides_controls_without_mutating_list(self):
+        for getter in ('function() error("unavailable") end', 'function() return nil end',
+                       'function() return "1" end', 'function() return 10 end'):
+            with self.subTest(getter=getter):
+                lua = self.runtime('PlayerPanel.GetFilter=' + getter)
+                self.assertEqual(lua.eval('elements.players.scroll_top'), 217)
+                self.assertEqual(lua.eval('#mode_calls'), 0)
+                self.assertEqual(lua.eval('elements.zh_player_filters.attributes.style'), 'display: none;')
 
     def test_late_native_binding_reveals_existing_document(self):
         lua = self.runtime('saved_ready=PlayerPanel.FiltersReady; PlayerPanel.FiltersReady=nil')
