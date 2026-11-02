@@ -117,75 +117,79 @@ class Store:
 
     def install(self, font_regular, font_semibold, font_mono, version, progress=lambda message: None, *, settings_fonts=None, freight_fonts=None):
         with self.lock():
-            closed(self.processes)
-            package, previous = self.current()
-            if previous is not None and previous['state'] != 'restored':
-                require(previous['state'] == 'installed', 'An interrupted operation must be restored first')
-                require(all(self.actual(name) == row['installed_sha256'] for name, row in previous['files'].items()),
-                        'Localization target changed; restore or resolve changes first')
-                try:
-                    resources.verify(self.tmp_root, package, font_paths=(font_regular, font_semibold, font_mono) +
-                                     (tuple(settings_fonts) if settings_fonts else ()) +
-                                     (tuple(freight_fonts) if freight_fonts else ()))
-                except (ValueError, OSError):
-                    pass  # Rebuild changed resources/fonts or an older package schema before touching targets.
-                else:
-                    return dict(state='already_installed', files=len(resources.OUTPUTS))
-            transaction = uuid.uuid4().hex
-            package = plain(self.directory / 'packages' / transaction, missing=True)
-            package.mkdir(parents=True)
-            progress('正在检查中文字体并准备汉化文件…')
-            resources.build(self.tmp_root, Path(font_regular), package,
-                            semibold=Path(font_semibold), mono=Path(font_mono), settings_fonts=settings_fonts,
-                            freight_fonts=freight_fonts)
-            manifest = resources.verify(self.tmp_root, package)
-            closed(self.processes)
-            if previous is not None and previous['state'] == 'installed':
-                progress('新版文件已准备好，正在保留原始恢复点并更新汉化…')
-                self._restore(progress)
-            backups = package / 'backups'
-            backups.mkdir()
-            rows = {}
-            for index, name in enumerate(resources.OUTPUTS):
-                target = self.target(name)
-                previous_sha = self.actual(name)
-                if previous_sha is not None:
-                    copy_checked(target, backups / self.backup_name(name), previous_sha)
-                rows[name] = dict(previous_sha256=previous_sha, installed_sha256=manifest['files'][name])
-            receipt = dict(schema=1, package='tmpzh-installer', transaction=transaction,
-                           tmp_root=str(self.tmp_root), version=version, state='applying', files=rows)
-            atomic_json(package / 'receipt.json', receipt)
-            atomic_json(self.pointer, dict(schema=1, transaction=transaction))
+            return self._install(font_regular, font_semibold, font_mono, version, progress, settings_fonts=settings_fonts, freight_fonts=freight_fonts)
+
+    def _install(self, font_regular, font_semibold, font_mono, version, progress=lambda message: None, *, settings_fonts=None, freight_fonts=None):
+        """Caller must hold the installer lock for this entire operation."""
+        closed(self.processes)
+        package, previous = self.current()
+        if previous is not None and previous['state'] != 'restored':
+            require(previous['state'] == 'installed', 'An interrupted operation must be restored first')
+            require(all(self.actual(name) == row['installed_sha256'] for name, row in previous['files'].items()),
+                    'Localization target changed; restore or resolve changes first')
             try:
-                progress('已保存恢复备份，正在安装汉化…')
-                for name, row in rows.items():
-                    target = self.target(name)
-                    target.parent.mkdir(parents=True, exist_ok=True)
-                    plain(target, missing=True)
-                    copy_checked(package / 'files' / name, self.stage(target, transaction), row['installed_sha256'])
-                closed(self.processes)
-                resources.verify(self.tmp_root, package)
-                require(all(self.actual(name) == row['previous_sha256'] for name, row in rows.items()),
-                        'Localization target changed while preparing; preserving user changes')
-                for name, row in rows.items():
-                    require(self.actual(name) == row['previous_sha256'], 'Localization target changed during install')
-                    target = self.target(name)
-                    os.replace(self.stage(target, transaction), target)
-                    require(self.actual(name) == row['installed_sha256'], 'Installed resource hash differs')
-                resources.verify(self.tmp_root, package)
-                require(all(self.actual(name) == row['installed_sha256'] for name, row in rows.items()),
-                        'Localization target changed after installation')
-                atomic_json(package / 'receipt.json', dict(receipt, state='installed'))
-            except Exception as exc:
-                try:
-                    self._restore(progress)
-                except Exception as recovery_error:
-                    raise ValueError('Installation interrupted; backups retained. Restore before playing. ' +
-                                     str(exc) + '; recovery: ' + str(recovery_error)) from exc
-                raise
-            finally:
-                self.cleanup_stages(receipt)
-            return dict(state='installed', files=len(rows), backup_directory=str(backups))
+                resources.verify(self.tmp_root, package, font_paths=(font_regular, font_semibold, font_mono) +
+                                 (tuple(settings_fonts) if settings_fonts else ()) +
+                                 (tuple(freight_fonts) if freight_fonts else ()))
+            except (ValueError, OSError):
+                pass  # Rebuild changed resources/fonts or an older package schema before touching targets.
+            else:
+                return dict(state='already_installed', files=len(resources.OUTPUTS))
+        transaction = uuid.uuid4().hex
+        package = plain(self.directory / 'packages' / transaction, missing=True)
+        package.mkdir(parents=True)
+        progress('正在检查中文字体并准备汉化文件…')
+        resources.build(self.tmp_root, Path(font_regular), package,
+                        semibold=Path(font_semibold), mono=Path(font_mono), settings_fonts=settings_fonts,
+                        freight_fonts=freight_fonts)
+        manifest = resources.verify(self.tmp_root, package)
+        closed(self.processes)
+        if previous is not None and previous['state'] == 'installed':
+            progress('新版文件已准备好，正在保留原始恢复点并更新汉化…')
+            self._restore(progress)
+        backups = package / 'backups'
+        backups.mkdir()
+        rows = {}
+        for index, name in enumerate(resources.OUTPUTS):
+            target = self.target(name)
+            previous_sha = self.actual(name)
+            if previous_sha is not None:
+                copy_checked(target, backups / self.backup_name(name), previous_sha)
+            rows[name] = dict(previous_sha256=previous_sha, installed_sha256=manifest['files'][name])
+        receipt = dict(schema=1, package='tmpzh-installer', transaction=transaction,
+                       tmp_root=str(self.tmp_root), version=version, state='applying', files=rows)
+        atomic_json(package / 'receipt.json', receipt)
+        atomic_json(self.pointer, dict(schema=1, transaction=transaction))
+        try:
+            progress('已保存恢复备份，正在安装汉化…')
+            for name, row in rows.items():
+                target = self.target(name)
+                target.parent.mkdir(parents=True, exist_ok=True)
+                plain(target, missing=True)
+                copy_checked(package / 'files' / name, self.stage(target, transaction), row['installed_sha256'])
+            closed(self.processes)
+            resources.verify(self.tmp_root, package)
+            require(all(self.actual(name) == row['previous_sha256'] for name, row in rows.items()),
+                    'Localization target changed while preparing; preserving user changes')
+            for name, row in rows.items():
+                require(self.actual(name) == row['previous_sha256'], 'Localization target changed during install')
+                target = self.target(name)
+                os.replace(self.stage(target, transaction), target)
+                require(self.actual(name) == row['installed_sha256'], 'Installed resource hash differs')
+            resources.verify(self.tmp_root, package)
+            require(all(self.actual(name) == row['installed_sha256'] for name, row in rows.items()),
+                    'Localization target changed after installation')
+            atomic_json(package / 'receipt.json', dict(receipt, state='installed'))
+        except Exception as exc:
+            try:
+                self._restore(progress)
+            except Exception as recovery_error:
+                raise ValueError('Installation interrupted; backups retained. Restore before playing. ' +
+                                 str(exc) + '; recovery: ' + str(recovery_error)) from exc
+            raise
+        finally:
+            self.cleanup_stages(receipt)
+        return dict(state='installed', files=len(rows), backup_directory=str(backups))
 
     @staticmethod
     def stage(target, transaction):

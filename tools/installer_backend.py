@@ -36,6 +36,7 @@ def discover(appdata=None):
     if options.is_file():
         try:
             configuration = json.loads(options.read_text(encoding='utf-8-sig'))
+            require(isinstance(configuration, dict), 'Launcher configuration must be an object')
             configured = configuration.get('installPath')
             if isinstance(configured, str) and configured.strip():
                 # Do not resolve relative paths against the launcher's arbitrary current directory.
@@ -117,32 +118,38 @@ def inspect(tmp_root, state_root=None, *, game_root=None, include_settings=False
 
 def install(tmp_root, assets=None, state_root=None, progress=lambda message: None, *,
             game_root=None, include_settings=False):
-    if include_settings:
-        status = inspect(tmp_root, state_root, game_root=game_root, include_settings=True, assets=assets)
-        require(status['compatible'], status['detail'])
-        require(status['settings']['state'] in ('not_installed', 'restored', 'installed'),
-                'An interrupted Settings operation must be restored first')
-        game_root = game_root or status['settings'].get('game_root')
-    fonts = bundled_fonts(assets)
-    result = Store(tmp_root, state_root).install(fonts['regular'], fonts['semibold'], fonts['mono'], VERSION, progress,
-                                               settings_fonts=(fonts['settings_regular'], fonts['settings_semibold']),
-                                               freight_fonts=(fonts['freight_regular'], fonts['freight_semibold']))
-    if include_settings:
-        try:
-            result['settings'] = SettingsStore(tmp_root, state_root).install(game_root, assets, VERSION, progress)
-        except (ValueError, OSError) as exc:
-            raise ValueError('Resource localization installed; Settings incomplete: ' + str(exc)) from exc
-    return result
+    store = Store(tmp_root, state_root)
+    with store.lock():
+        if include_settings:
+            status = inspect(tmp_root, state_root, game_root=game_root, include_settings=True, assets=assets)
+            require(status['compatible'], status['detail'])
+            require(status['settings']['state'] in ('not_installed', 'restored', 'installed'),
+                    'An interrupted Settings operation must be restored first')
+            game_root = game_root or status['settings'].get('game_root')
+        fonts = bundled_fonts(assets)
+        result = store._install(fonts['regular'], fonts['semibold'], fonts['mono'], VERSION, progress,
+                                settings_fonts=(fonts['settings_regular'], fonts['settings_semibold']),
+                                freight_fonts=(fonts['freight_regular'], fonts['freight_semibold']))
+        if include_settings:
+            try:
+                settings = SettingsStore(tmp_root, state_root)
+                result['settings'] = settings._install(game_root, assets, VERSION, progress)
+                require(settings.status()['state'] == 'installed', 'Settings changed after installation')
+            except (ValueError, OSError) as exc:
+                raise ValueError('Resource localization installed; Settings incomplete: ' + str(exc)) from exc
+        require(store.status()['state'] == 'installed', 'Localization target changed after installation')
+        return result
 
 
 def restore(tmp_root, state_root=None, progress=lambda message: None):
-    settings = SettingsStore(tmp_root, state_root)
-    native = settings.restore(progress) if settings.status()['can_restore'] else None
     store = Store(tmp_root, state_root)
-    result = store.restore(progress) if store.status()['can_restore'] else dict(state='restored')
-    if native:
-        result['settings'] = native
-    return result
+    with store.lock():
+        settings = SettingsStore(tmp_root, state_root)
+        native = settings._restore(progress) if settings.status()['can_restore'] else None
+        result = store._restore(progress) if store.status()['can_restore'] else dict(state='restored')
+        if native:
+            result['settings'] = native
+        return result
 
 
 def friendly_error(exc):

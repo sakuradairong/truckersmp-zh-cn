@@ -4,16 +4,19 @@ import os
 from pathlib import Path
 import shutil
 import struct
+import subprocess
 import sys
 import unittest
 from unittest.mock import patch
 import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
-from common import ROOT, atomic_json, sha
+from common import ROOT, atomic_json, digest, sha
 import installer_backend as backend
 from installer_settings import DLL, SettingsStore
 import installer_settings
+from installer_store import Store
+import resources
 import settings_compatibility as compatibility
 
 
@@ -173,8 +176,8 @@ class Installation(unittest.TestCase):
                 backend, 'bundled_fonts', return_value={key: self.assets / DLL for key in backend.FONT_FILES}), patch.object(
                 backend, 'SettingsStore', return_value=self.store):
             store = resource_type.return_value
-            store.status.return_value = dict(state='not_installed', can_restore=False)
-            store.install.return_value = dict(state='installed')
+            store.status.return_value = dict(state='installed', can_restore=True)
+            store._install.return_value = dict(state='installed')
             result = backend.install(self.tmp, self.assets, self.state, game_root=self.game, include_settings=True)
             self.assertEqual(result['settings']['state'], 'installed')
             self.assertEqual(self.target.read_bytes(), b'localized settings DLL')
@@ -182,22 +185,87 @@ class Installation(unittest.TestCase):
             def restore_fonts(progress):
                 self.assertEqual(self.target.read_bytes(), b'original settings DLL')
                 return dict(state='restored')
-            store.restore.side_effect = restore_fonts
+            store._restore.side_effect = restore_fonts
             backend.restore(self.tmp, self.state)
-            store.install.assert_called_once()
-            self.assertEqual(store.install.call_args.kwargs['settings_fonts'], (self.assets / DLL, self.assets / DLL))
-            store.restore.assert_called_once()
+            store._install.assert_called_once()
+            self.assertEqual(store._install.call_args.kwargs['settings_fonts'], (self.assets / DLL, self.assets / DLL))
+            store._restore.assert_called_once()
 
     def test_backend_reports_partial_install_instead_of_full_success(self):
         with patch.object(backend, 'Store') as resource_type, patch.object(backend.resources, 'check_compatibility', return_value={}), patch.object(
                 backend, 'bundled_fonts', return_value={key: self.assets / DLL for key in backend.FONT_FILES}), patch.object(
-                SettingsStore, 'install', side_effect=ValueError('synthetic Settings write failure')):
+                SettingsStore, '_install', side_effect=ValueError('synthetic Settings write failure')):
             resource_type.return_value.status.return_value = dict(state='not_installed', can_restore=False)
-            resource_type.return_value.install.return_value = dict(state='installed')
+            resource_type.return_value._install.return_value = dict(state='installed')
             with self.assertRaisesRegex(ValueError, 'Resource localization installed; Settings incomplete') as error:
                 backend.install(self.tmp, self.assets, self.state, game_root=self.game, include_settings=True)
             self.assertIn('资源汉化已安装，但 Settings 安装未完成', backend.friendly_error(error.exception))
 
+    def assert_competing_operations_blocked(self):
+        for action in ('install', 'restore'):
+            result = subprocess.run([sys.executable, '-B', __file__, '--compete', action,
+                                     str(self.tmp), str(self.state)], capture_output=True, text=True, timeout=30)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn('Another installer is already running', result.stdout)
+
+    def test_backend_lock_covers_preflight_component_gap_and_restore_gap(self):
+        original_init, original_install = Store.__init__, Store._install
+        original_restore = SettingsStore._restore
+        def init(store, tmp_root, state_root=None, processes=None):
+            original_init(store, tmp_root, state_root, processes=lambda: [])
+        files = {}
+        def build(tmp, font, output, **kwargs):
+            for name in resources.OUTPUTS:
+                path = output / 'files' / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(('localized-' + name).encode())
+                files[name] = digest(path)
+        def checked_preflight(*args, **kwargs):
+            self.assert_competing_operations_blocked()
+            return {}
+        def install_gap(store, *args, **kwargs):
+            result = original_install(store, *args, **kwargs)
+            self.assert_competing_operations_blocked()
+            return result
+        def restore_gap(store, progress):
+            result = original_restore(store, progress)
+            self.assert_competing_operations_blocked()
+            self.assertTrue(all((self.tmp / name).is_file() for name in resources.OUTPUTS))
+            return result
+        with patch.object(Store, '__init__', init), patch.object(Store, '_install', install_gap), \
+                patch.object(SettingsStore, '_restore', restore_gap), \
+                patch.object(resources, 'build', side_effect=build), \
+                patch.object(resources, 'verify', side_effect=lambda *a, **kw: {'files': dict(files)}), \
+                patch.object(resources, 'check_compatibility', side_effect=checked_preflight), \
+                patch.object(backend, 'bundled_fonts', return_value={key: self.assets / DLL for key in backend.FONT_FILES}):
+            result = backend.install(self.tmp, self.assets, self.state, game_root=self.game, include_settings=True)
+            self.assertEqual(result['state'], 'installed')
+            self.assertEqual(result['settings']['state'], 'installed')
+            self.assertEqual(Store(self.tmp, self.state).status()['state'], 'installed')
+            self.assertEqual(self.store.status()['state'], 'installed')
+            backend.restore(self.tmp, self.state)
+        self.assertEqual(self.target.read_bytes(), b'original settings DLL')
+        self.assertFalse(any((self.tmp / name).exists() for name in resources.OUTPUTS))
+        with Store(self.tmp, self.state).lock():
+            pass  # Both successful operations released the OS lock.
+
+    def test_failed_backend_preflight_releases_lock(self):
+        with patch.object(backend, 'inspect', side_effect=ValueError('synthetic preflight failure')):
+            with self.assertRaisesRegex(ValueError, 'preflight failure'):
+                backend.install(self.tmp, self.assets, self.state, game_root=self.game, include_settings=True)
+        with Store(self.tmp, self.state).lock():
+            pass
+
 
 if __name__ == '__main__':
-    unittest.main()
+    if len(sys.argv) > 1 and sys.argv[1] == '--compete':
+        try:
+            getattr(backend, sys.argv[2])(Path(sys.argv[3]), state_root=Path(sys.argv[4]))
+        except ValueError as exc:
+            if 'Another installer is already running' not in str(exc):
+                raise
+            print(exc)
+        else:
+            raise AssertionError('Concurrent backend operation was not refused')
+    else:
+        unittest.main()

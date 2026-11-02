@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import stat
 import subprocess
@@ -152,14 +153,17 @@ def install(layout):
     manifest=verify(layout);layout.closed();layout.inputs()
     expected=manifest['files'][DLL]
     target=layout.destination
+    previous = owned_receipt(layout) if layout.receipt.exists() else None
+    if previous is not None:
+        require(previous['state'] in ('installed', 'restored'), 'Previous transaction is incomplete; restore first')
     if target.exists():
-        require(layout.receipt.exists(),'Existing DLL has no owned receipt; refusing replacement')
-        previous=json.loads(layout.receipt.read_text(encoding='utf-8'))
+        require(previous is not None,'Existing DLL has no owned receipt; refusing replacement')
         require(previous.get('state')=='installed' and previous.get('dll_sha256')==expected and digest(target)==expected,
                 'Existing DLL differs; refusing replacement')
         return dict(state='already_installed',path=str(target),dll_sha256=expected)
     transaction=uuid.uuid4().hex
-    receipt=dict(schema=1,package='TmpSettingsZh',state='installed',transaction=transaction,
+    require(previous is None or previous['state'] == 'restored', 'Installed DLL is missing; restore first')
+    receipt=dict(schema=1,package='TmpSettingsZh',state='applying',transaction=transaction,
                  version=manifest['version'],path=str(target),dll_sha256=expected,previous_dll=None,
                  installed_utc=datetime.now(timezone.utc).isoformat(),
                  preserved_inputs={str(p):h for p,h in layout.pins.items()},
@@ -172,11 +176,12 @@ def install(layout):
         require(digest(stage)==expected,'Staged DLL hash mismatch')
         layout.closed();layout.inputs();layout.paths()
         require(not target.exists(),'Destination appeared during staging')
+        atomic_json(layout.receipt,receipt)
         # Windows rename fails if the target exists; it cannot overwrite a foreign DLL.
         stage.rename(target);published=True
         require(digest(target)==expected,'Installed DLL hash mismatch')
         layout.inputs()
-        atomic_json(layout.receipt,receipt)
+        atomic_json(layout.receipt,dict(receipt,state='installed'))
     except BaseException:
         if published and target.exists() and digest(target)==expected:
             target.rename(stage)
@@ -188,29 +193,55 @@ def install(layout):
     return dict(state='installed',path=str(target),dll_sha256=expected,receipt=str(layout.receipt),preserved_files=len(layout.pins))
 
 
-def restore(layout):
-    layout.paths();layout.closed()
-    receipt=json.loads(layout.receipt.read_text(encoding='utf-8'))
+def owned_receipt(layout):
+    from common import read_json
+    receipt=read_json(plain(layout.receipt))
     require(receipt.get('schema')==1 and receipt.get('package')=='TmpSettingsZh','Unknown installation receipt')
     require(receipt.get('path')==str(layout.destination) and receipt.get('previous_dll') is None,'Unexpected restore target')
+    require(receipt.get('state') in ('applying', 'installed', 'restoring', 'restored'), 'Invalid installation state')
+    require(isinstance(receipt.get('dll_sha256'), str) and re.fullmatch('[0-9a-f]{64}', receipt['dll_sha256']),
+            'Invalid installation hash')
+    return receipt
+
+
+def restore(layout):
+    layout.paths();layout.closed()
+    receipt=owned_receipt(layout)
     if receipt.get('state')=='restored':
         require(not layout.destination.exists(),'DLL reappeared after restoration')
         return dict(state='already_restored')
-    require(receipt.get('state')=='installed','Receipt is not installed')
     expected=receipt['dll_sha256']
-    require(digest(layout.destination)==expected,'Installed DLL changed; refusing to move it')
-    archive=layout.destination.with_name(DLL+'.disabled-'+uuid.uuid4().hex)
+    if receipt['state']=='restoring':
+        # Use only the exact sibling previously journaled; never trust an arbitrary archive path.
+        archive=Path(receipt.get('disabled_copy', ''))
+        require(archive.parent==layout.plugins and re.fullmatch(re.escape(DLL)+r'\.disabled-[0-9a-f]{32}', archive.name),
+                'Unexpected restore archive target')
+        plain(archive,missing=True)
+    else:
+        archive=layout.destination.with_name(DLL+'.disabled-'+uuid.uuid4().hex)
+    if layout.destination.exists():
+        require(layout.destination.is_file() and digest(layout.destination)==expected,
+                'Installed DLL changed; refusing to move it')
+        require(not archive.exists(), 'Restore archive already exists; preserving files')
+    else:
+        require(receipt['state'] != 'installed', 'Installed DLL is missing')
+        if receipt['state']=='restoring' and archive.exists():
+            require(archive.is_file() and digest(archive)==expected, 'Restore archive hash mismatch')
+    updated=dict(receipt,state='restoring',disabled_copy=str(archive))
+    atomic_json(layout.receipt,updated)
     layout.closed();layout.paths()
-    require(digest(layout.destination)==expected,'Installed DLL changed during restore')
-    layout.destination.rename(archive)
-    try:
+    if layout.destination.exists():
+        require(layout.destination.is_file() and digest(layout.destination)==expected,'Installed DLL changed during restore')
+        layout.destination.rename(archive)
+    if archive.exists():
         require(digest(archive)==expected,'Restore archive hash mismatch')
-        updated=dict(receipt,state='restored',disabled_copy=str(archive),restored_utc=datetime.now(timezone.utc).isoformat())
-        atomic_json(layout.receipt,updated)
-    except BaseException:
-        if not layout.destination.exists() and digest(archive)==expected:
-            archive.rename(layout.destination)
-        raise
+    require(not layout.destination.exists(), 'DLL reappeared during restoration')
+    atomic_json(layout.receipt,dict(updated,state='restored',restored_utc=datetime.now(timezone.utc).isoformat()))
+    transaction=receipt.get('transaction', '')
+    if isinstance(transaction, str) and re.fullmatch('[0-9a-f]{32}', transaction):
+        stage=plain(layout.destination.with_name(DLL+'.new-'+transaction),missing=True)
+        if stage.is_file() and digest(stage)==expected:
+            stage.unlink()
     return dict(state='restored',disabled_copy=str(archive),path=str(layout.destination))
 
 
@@ -235,6 +266,9 @@ def configured_layout(tmp_root, game_root, release, action):
     plugins = game_root / 'bin/win_x64/plugins'
     require(not release.is_relative_to(tmp_root) and not release.is_relative_to(game_root),
             'Package cannot be inside the TMP/game installation')
+    # Recovery is authorized by the installed receipt and DLL hash, not today's package dependencies.
+    if action == 'restore':
+        return Layout(release, plugins, {})
     source_paths = {tmp_root / 'core_ets2mp.dll', tmp_root / 'data/shared/ui.mp', tmp_root / 'data/shared/client.mp'}
     paths = source_paths | {tmp_root / name for name in OUTPUTS}
     if action == 'seal':

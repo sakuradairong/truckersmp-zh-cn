@@ -1,11 +1,11 @@
 """Install/restore only the declared localization resources, with backups."""
 from __future__ import annotations
-import json
 import os
 from pathlib import Path
+import re
 import shutil
 import uuid
-from common import active_apps, atomic_json, closed, digest, plain, read_json, require, write_output
+from common import active_apps, atomic_json, closed, digest, plain, read_json, require
 
 
 def targets(tmp_root, output, names=None):
@@ -49,6 +49,14 @@ def receipt_for(tmp_root, output, paths):
     transaction = receipt.get('transaction', '')
     require(len(transaction) == 32 and all(char in '0123456789abcdef' for char in transaction),
             'Invalid transaction identifier')
+    require(receipt.get('state') in ('applying', 'installed', 'restoring', 'restored'),
+            'Invalid resource receipt state')
+    for row in receipt['files'].values():
+        require(isinstance(row, dict) and set(row) == {'previous_sha256', 'installed_sha256'},
+                'Invalid resource receipt row')
+        for key, value in row.items():
+            require((key == 'previous_sha256' and value is None) or
+                    isinstance(value, str) and re.fullmatch('[0-9a-f]{64}', value), 'Invalid receipt hash')
     return receipt
 
 
@@ -87,6 +95,10 @@ def install(tmp_root, output, processes=active_apps):
         closed(processes)
         verify(tmp_root, output)
         check_baseline(paths, rows, False)
+        # Publish the recovery mapping before the first target mutation, including on first install.
+        receipt = dict(schema=1, package='truckersmp-zh-cn-resources', state='applying',
+                       tmp_root=str(tmp_root), transaction=transaction, files=rows, game_started=False)
+        atomic_json(receipt_path, receipt)
         for name, target in paths.items():
             # Check again immediately before each replacement; changed user files are preserved.
             check_baseline({name: target}, rows, False)
@@ -94,9 +106,7 @@ def install(tmp_root, output, processes=active_apps):
             committed.append(name)
             require(digest(target) == rows[name]['installed_sha256'], 'Installed resource hash differs')
         check_baseline(paths, rows, True)
-        receipt = dict(schema=1, package='truckersmp-zh-cn-resources', state='installed',
-                       tmp_root=str(tmp_root), transaction=transaction, files=rows, game_started=False)
-        atomic_json(receipt_path, receipt)
+        atomic_json(receipt_path, dict(receipt, state='installed'))
     except BaseException:
         for name in reversed(committed):
             target = paths[name]
@@ -128,47 +138,46 @@ def restore(tmp_root, output, processes=active_apps):
     if receipt['state'] == 'restored':
         check_baseline(paths, rows, False)
         return dict(state='already_restored')
-    require(receipt['state'] == 'installed', 'Receipt is not installed')
-    check_baseline(paths, rows, True)
     backup_root = plain(output / 'backups' / receipt['transaction'])
+    def actual(name):
+        target = plain(paths[name], missing=True)
+        require(not target.exists() or target.is_file(), 'Target is not a regular file')
+        return digest(target) if target.exists() else None
+
+    # Applying/restoring journals may contain any mix of original and installed files.
+    # Check every target and backup before making any recovery write.
     for index, name in enumerate(paths):
+        row = rows[name]
+        allowed = (row['installed_sha256'],) if receipt['state'] == 'installed' else (
+            row['previous_sha256'], row['installed_sha256'])
+        require(actual(name) in allowed, 'Localization target changed; preserving it: ' + str(paths[name]))
         if rows[name]['previous_sha256'] is not None:
             require(digest(plain(backup_root / f'{index}.bin')) == rows[name]['previous_sha256'],
                     'Restore backup changed')
-    transaction = uuid.uuid4().hex
-    stages, displaced, committed = {}, {}, []
-    try:
-        for index, (name, target) in enumerate(paths.items()):
-            if rows[name]['previous_sha256'] is not None:
-                staged = target.with_name(target.name + '.restore-' + transaction)
-                stages[name] = staged
-                stage_copy(backup_root / f'{index}.bin', staged, rows[name]['previous_sha256'])
-        closed(processes)
-        check_baseline(paths, rows, True)
-        for name, target in paths.items():
+    atomic_json(output / 'installed-resources.json', dict(receipt, state='restoring'))
+    closed(processes)
+    for index, (name, target) in enumerate(paths.items()):
+        row = rows[name]
+        current = actual(name)
+        require(current in (row['previous_sha256'], row['installed_sha256']),
+                'Localization target changed during restore: ' + str(target))
+        if current == row['previous_sha256']:
+            continue
+        if row['previous_sha256'] is None:
+            target.unlink()
+        else:
+            staged = plain(target.with_name(target.name + '.restore-' + receipt['transaction']), missing=True)
+            if staged.exists():
+                require(staged.is_file() and digest(staged) == row['previous_sha256'],
+                        'Restore staging file changed; preserving it')
+            else:
+                stage_copy(backup_root / f'{index}.bin', staged, row['previous_sha256'])
             check_baseline({name: target}, rows, True)
-            disabled = target.with_name(target.name + '.disabled-' + transaction)
-            require(not disabled.exists(), 'Restore staging destination already exists')
-            target.rename(disabled)
-            displaced[name] = disabled
-            committed.append(name)
-            if name in stages:
-                stages[name].rename(target)
-        check_baseline(paths, rows, False)
-        atomic_json(output / 'installed-resources.json', dict(receipt, state='restored'))
-    except BaseException:
-        for name in reversed(committed):
-            target, disabled = paths[name], displaced[name]
-            previous_sha = rows[name]['previous_sha256']
-            safe = not target.exists() or (previous_sha is not None and target.is_file() and digest(target) == previous_sha)
-            if safe and disabled.is_file() and digest(disabled) == rows[name]['installed_sha256']:
-                os.replace(disabled, target)
-        raise
-    finally:
-        for name, staged in stages.items():
-            if staged.exists() and digest(staged) == rows[name]['previous_sha256']:
-                staged.unlink()
-    for name, disabled in displaced.items():
-        if disabled.exists() and digest(disabled) == rows[name]['installed_sha256']:
-            disabled.unlink()
+            os.replace(staged, target)
+    check_baseline(paths, rows, False)
+    atomic_json(output / 'installed-resources.json', dict(receipt, state='restored'))
+    for name, target in paths.items():
+        staged = plain(target.with_name(target.name + '.new-' + receipt['transaction']), missing=True)
+        if staged.is_file() and digest(staged) == rows[name]['installed_sha256']:
+            staged.unlink()
     return dict(state='restored', files=len(paths), backups=str(backup_root))

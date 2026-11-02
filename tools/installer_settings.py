@@ -86,56 +86,60 @@ class SettingsStore:
 
     def install(self, game_root, assets=None, version='', progress=lambda message: None):
         with self.anchor.lock():
-            closed(self.anchor.processes)
-            game_root = game_directory(game_root)
-            payload, compatibility = bundled(assets)
-            core = plain(self.anchor.tmp_root / 'core_ets2mp.dll')
-            core_before = digest(core)
-            settings_compatibility.check_core(core, compatibility)
-            expected = digest(payload)
-            _, previous = self.current()
-            if previous and previous['state'] != 'restored':
-                require(previous['state'] == 'installed', 'An interrupted Settings operation must be restored first')
-                require(str(game_root) == previous['game_root'], 'Restore Settings before changing the ETS2 directory')
-                require(self.actual(game_root) == previous['installed_sha256'], 'Localization target changed: Settings')
-                if previous['installed_sha256'] == expected:
-                    return dict(state='already_installed', path=str(self.target(game_root)))
-                self._restore(progress)
-            transaction = uuid.uuid4().hex
-            package = plain(self.directory / 'packages' / transaction, missing=True)
-            package.mkdir(parents=True)
-            target = self.target(game_root)
-            previous_sha = self.actual(game_root)
-            if previous_sha is not None:
-                copy_checked(target, package / 'previous.dll', previous_sha)
-            target.parent.mkdir(parents=True, exist_ok=True)
-            stage = plain(target.with_name(target.name + '.tmpzh-' + transaction), missing=True)
-            copy_checked(payload, stage, expected)
-            receipt = dict(schema=1, package='tmpzh-settings', transaction=transaction, state='applying',
-                           tmp_root=str(self.anchor.tmp_root), game_root=str(game_root), version=version,
-                           installed_sha256=expected, previous_sha256=previous_sha)
-            closed(self.anchor.processes)
-            require(self.actual(game_root) == previous_sha and digest(core) == core_before,
-                    'Localization target changed while preparing Settings')
-            atomic_json(package / 'receipt.json', receipt)
-            atomic_json(self.pointer, dict(schema=1, transaction=transaction))
+            return self._install(game_root, assets, version, progress)
+
+    def _install(self, game_root, assets=None, version='', progress=lambda message: None):
+        """Caller must hold the installer lock for this entire operation."""
+        closed(self.anchor.processes)
+        game_root = game_directory(game_root)
+        payload, compatibility = bundled(assets)
+        core = plain(self.anchor.tmp_root / 'core_ets2mp.dll')
+        core_before = digest(core)
+        settings_compatibility.check_core(core, compatibility)
+        expected = digest(payload)
+        _, previous = self.current()
+        if previous and previous['state'] != 'restored':
+            require(previous['state'] == 'installed', 'An interrupted Settings operation must be restored first')
+            require(str(game_root) == previous['game_root'], 'Restore Settings before changing the ETS2 directory')
+            require(self.actual(game_root) == previous['installed_sha256'], 'Localization target changed: Settings')
+            if previous['installed_sha256'] == expected:
+                return dict(state='already_installed', path=str(self.target(game_root)))
+            self._restore(progress)
+        transaction = uuid.uuid4().hex
+        package = plain(self.directory / 'packages' / transaction, missing=True)
+        package.mkdir(parents=True)
+        target = self.target(game_root)
+        previous_sha = self.actual(game_root)
+        if previous_sha is not None:
+            copy_checked(target, package / 'previous.dll', previous_sha)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        stage = plain(target.with_name(target.name + '.tmpzh-' + transaction), missing=True)
+        copy_checked(payload, stage, expected)
+        receipt = dict(schema=1, package='tmpzh-settings', transaction=transaction, state='applying',
+                       tmp_root=str(self.anchor.tmp_root), game_root=str(game_root), version=version,
+                       installed_sha256=expected, previous_sha256=previous_sha)
+        closed(self.anchor.processes)
+        require(self.actual(game_root) == previous_sha and digest(core) == core_before,
+                'Localization target changed while preparing Settings')
+        atomic_json(package / 'receipt.json', receipt)
+        atomic_json(self.pointer, dict(schema=1, transaction=transaction))
+        try:
+            progress('正在安装 Settings 五页汉化…')
+            require(self.actual(game_root) == previous_sha, 'Localization target changed: Settings')
+            os.replace(stage, target)
+            require(self.actual(game_root) == expected and digest(core) == core_before,
+                    'Settings inputs changed during installation')
+            atomic_json(package / 'receipt.json', dict(receipt, state='installed'))
+        except Exception as exc:
             try:
-                progress('正在安装 Settings 五页汉化…')
-                require(self.actual(game_root) == previous_sha, 'Localization target changed: Settings')
-                os.replace(stage, target)
-                require(self.actual(game_root) == expected and digest(core) == core_before,
-                        'Settings inputs changed during installation')
-                atomic_json(package / 'receipt.json', dict(receipt, state='installed'))
-            except Exception as exc:
-                try:
-                    self._restore(progress)
-                except Exception as recovery:
-                    raise ValueError('Installation interrupted; restore Settings before playing: ' + str(recovery)) from exc
-                raise
-            finally:
-                if stage.is_file() and digest(stage) == expected:
-                    stage.unlink()
-            return dict(state='installed', path=str(target), backup_directory=str(package))
+                self._restore(progress)
+            except Exception as recovery:
+                raise ValueError('Installation interrupted; restore Settings before playing: ' + str(recovery)) from exc
+            raise
+        finally:
+            if stage.is_file() and digest(stage) == expected:
+                stage.unlink()
+        return dict(state='installed', path=str(target), backup_directory=str(package))
 
     def restore(self, progress=lambda message: None):
         with self.anchor.lock():

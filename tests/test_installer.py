@@ -53,6 +53,19 @@ class Discovery(PrivateTree):
         configuration.write_text('{"installPath":"relative/untrusted"}', encoding='utf-8')
         self.assertEqual(backend.discover(self.directory)[0], [])
 
+    def test_non_object_json_falls_back_without_changing_configuration(self):
+        configuration = self.directory / 'TruckersMP/launcher-options.json'
+        configuration.parent.mkdir()
+        fallback = configuration.parent / 'installation'
+        fallback.mkdir(); (fallback / 'core_ets2mp.dll').write_bytes(b'synthetic')
+        for value in ([], None, True, 42, 'path'):
+            with self.subTest(value=value):
+                original = json.dumps(value).encode('utf-8')
+                configuration.write_bytes(original)
+                candidates, notes = backend.discover(self.directory)
+                self.assertEqual(candidates, [fallback]); self.assertTrue(notes)
+                self.assertEqual(configuration.read_bytes(), original)
+
     def test_unc_discovery_is_refused_without_network_file_queries(self):
         with patch.object(Path, 'is_file', side_effect=AssertionError('Must not query network files')):
             self.assertEqual(backend.discover(r'\\untrusted\share')[0], [])
