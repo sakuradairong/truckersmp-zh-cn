@@ -222,7 +222,14 @@ class InstallerApp:
             self.game_path.set(native['game_root'])
         prefix = '所选安装内容通过离线兼容检查。' if status['compatible'] else '所选安装内容尚未通过检查。'
         detail = '\n' + backend.friendly_error(ValueError(status['detail'])) if not status['compatible'] and status.get('detail') else ''
-        self.state_text.set(prefix + labels[status['state']] + '\nSettings：' + labels.get(native.get('state'), '尚未检查') + detail)
+        features = status.get('native_compatibility', {})
+        feature_text = ''
+        if features.get('schema') == 2:
+            feature_text = '\n' + ' · '.join(name + ('：可用' if features.get(key) else '：待适配')
+                for key, name in (('settings', 'Settings'), ('freight', '货运中文'), ('players', 'TAB / 个人资料')))
+            if not all(features.get(key) for key in ('settings', 'freight', 'players')):
+                prefix = '资源和部分原生功能可安装；待适配功能将保留原版行为。'
+        self.state_text.set(prefix + labels[status['state']] + '\n原生模块：' + labels.get(native.get('state'), '尚未检查') + feature_text + detail)
         allowed = ('not_installed', 'restored', 'installed')
         self.install_button.configure(text='更新 / 检查汉化' if status['state'] == 'installed' else '安装汉化',
             state='normal' if status['compatible'] and status['state'] in allowed and
@@ -320,6 +327,15 @@ def main():
                 result['license_viewer'] = any(isinstance(widget, tk.Toplevel) for widget in root.winfo_children())
                 result['settings_default_selected'] = app.include_settings.get()
                 result['game_directory_control'] = bool(app.game_entry.winfo_exists())
+                status = dict(compatible=True, state='not_installed', can_restore=False,
+                    settings=dict(state='not_installed'), detail='',
+                    native_compatibility=dict(schema=2, settings=True, freight=False, players=True))
+                app.apply_status(status)
+                root.update_idletasks()
+                result['feature_status_ui'] = ('货运中文：待适配' in app.state_text.get() and
+                    'TAB / 个人资料：可用' in app.state_text.get() and not app.install_button.instate(['disabled']))
+                if not result['feature_status_ui']:
+                    raise ValueError('Per-feature compatibility UI self-test failed')
                 app.close()
             else:
                 fonts = backend.bundled_fonts(args.assets)

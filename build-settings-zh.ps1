@@ -32,10 +32,19 @@ if not "%errorlevel%"=="0" exit /b %errorlevel%
 cl /nologo /std:c++17 /utf-8 /O2 /MT /EHsc /W4 /I"." /I"..\..\vendor\minhook\include" /I"__SCS__" "..\..\tests\native_settings_zh_test.cpp" buffer.obj hook.obj trampoline.obj hde64.obj /link bcrypt.lib winhttp.lib /OUT:native-settings-zh-test.exe
 if not "%errorlevel%"=="0" exit /b %errorlevel%
 native-settings-zh-test.exe TmpSettingsZh.dll native-checks.json
+if not "%errorlevel%"=="0" exit /b %errorlevel%
+cl /nologo /std:c++17 /utf-8 /O2 /MT /EHsc /W4 /I"." "..\..\tests\native_relocation_test.cpp" /Fe:native-relocation-test.exe
+if not "%errorlevel%"=="0" exit /b %errorlevel%
+native-relocation-test.exe --selftest relocation-checks.json
+if not "%errorlevel%"=="0" exit /b %errorlevel%
+native-relocation-test.exe "__TMP__\core_ets2mp.dll" 7
+if not "%errorlevel%"=="0" exit /b %errorlevel%
+native-relocation-test.exe --rebase-fixture "__TMP__\core_ets2mp.dll"
 exit /b %errorlevel%
 "@
-$batch = $batch.Replace('__DEVCMD__', $devcmd).Replace('__ROOT__', $projectRoot).Replace('__SCS__', $ScsSdk)
+$batch = $batch.Replace('__DEVCMD__', $devcmd).Replace('__ROOT__', $projectRoot).Replace('__SCS__', $ScsSdk).Replace('__TMP__', $TmpRoot)
 $batchPath = Join-Path $projectRoot 'build\native-settings-zh\build.cmd'
+$batch = $batch.Replace("`r`n", "`n").Replace("`n", "`r`n")
 [IO.File]::WriteAllText($batchPath, $batch, [Text.UTF8Encoding]::new($false))
 & $env:ComSpec /d /c $batchPath | Tee-Object -FilePath (Join-Path $projectRoot 'build\native-settings-zh\build.log')
 if ($LASTEXITCODE -ne 0) { throw "Native Settings build/tests failed: $LASTEXITCODE" }

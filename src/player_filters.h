@@ -57,7 +57,7 @@ void* notifiedOwner=nullptr;
 ULONGLONG lastNotification=0;
 thread_local bool notifying=false;
 void ForgetDocument();
-bool Ready(){return active.load()&&enabled.load()&&!stopped.load();}
+bool Ready(){return active.load()&&!stopped.load();}
 void Adopt(void* panel){if(state.owner!=panel){state={};state.owner=panel;}}
 void Disable(){active=false;state={};playerprofile::Snapshot(0,GetTickCount64());Log("inactive: player filters layout guard; original player list retained");}
 
@@ -204,6 +204,9 @@ bool HookRefresh(void* model) {
     return changed;
 }
 bool Verify() {
+#ifndef TMPZH_TEST_FIXTURE
+    return (compatibility.capabilities&4)!=0;
+#else
     if(!Readable(core,4096))return false;
     auto* dos=reinterpret_cast<IMAGE_DOS_HEADER*>(core);
     if(dos->e_magic!=IMAGE_DOS_SIGNATURE||dos->e_lfanew<0||dos->e_lfanew>2048)return false;
@@ -214,50 +217,52 @@ bool Verify() {
         if(g.rva>=imageSize||g.size>imageSize-g.rva||!Readable(core+g.rva,g.size)||
            std::memcmp(core+g.rva,g.bytes,g.size))return false;
     return true;
+#endif
 }
 void Attach() {
+    if(stopped.load())return;
     if(!Verify()){Log("inactive: player filters code/ABI mismatch; original player list retained");return;}
-    luaGetTop=reinterpret_cast<LuaGetTop>(core+0x729b10);
-    luaState=reinterpret_cast<LuaState>(core+0x8fad10);
-    luaSetTop=reinterpret_cast<LuaSetTop>(core+0x72a9e0);
-    luaGetField=reinterpret_cast<LuaGetField>(core+0x729940);
-    luaPushClosure=reinterpret_cast<LuaPushClosure>(core+0x72a0c0);
-    luaSetField=reinterpret_cast<LuaSetField>(core+0x72a770);
-    luaString=reinterpret_cast<LuaString>(core+0x728c90);
-    luaInteger=reinterpret_cast<LuaInteger>(core+0x72a1f0);
-    luaPushString=reinterpret_cast<LuaPushString>(core+0x72a350);
-    luaProtectedCall=reinterpret_cast<LuaProtectedCall>(core+0x729fc0);
-    moveString=reinterpret_cast<MoveString>(core+0x81c50);
-    eraseRows=reinterpret_cast<EraseRows>(core+0x1d3010);
+    luaGetTop=reinterpret_cast<LuaGetTop>(core+Rva(0x729e90));
+    luaState=reinterpret_cast<LuaState>(core+Rva(0x8fb080));
+    luaSetTop=reinterpret_cast<LuaSetTop>(core+Rva(0x72ad60));
+    luaGetField=reinterpret_cast<LuaGetField>(core+Rva(0x729cc0));
+    luaPushClosure=reinterpret_cast<LuaPushClosure>(core+Rva(0x72a440));
+    luaSetField=reinterpret_cast<LuaSetField>(core+Rva(0x72aaf0));
+    luaString=reinterpret_cast<LuaString>(core+Rva(0x729010));
+    luaInteger=reinterpret_cast<LuaInteger>(core+Rva(0x72a570));
+    luaPushString=reinterpret_cast<LuaPushString>(core+Rva(0x72a6d0));
+    luaProtectedCall=reinterpret_cast<LuaProtectedCall>(core+Rva(0x72a340));
+    moveString=reinterpret_cast<MoveString>(core+Rva(0x81c90));
+    eraseRows=reinterpret_cast<EraseRows>(core+Rva(0x1d3190));
     refresh=HookRefresh;
-    dirtyAll=reinterpret_cast<Build>(core+0x7f5e70);
-    getPanel=reinterpret_cast<GetPanel>(core+0x1cef50);
-    getContext=reinterpret_cast<GetContext>(core+0x1cbc50);
-    resetSelection=reinterpret_cast<Build>(core+0x1b8780);
-    variantString=reinterpret_cast<VariantString>(core+0x805480);
+    dirtyAll=reinterpret_cast<Build>(core+Rva(0x7f61f0));
+    getPanel=reinterpret_cast<GetPanel>(core+Rva(0x1cf0d0));
+    getContext=reinterpret_cast<GetContext>(core+Rva(0x1cbdd0));
+    resetSelection=reinterpret_cast<Build>(core+Rva(0x1b8900));
+    variantString=reinterpret_cast<VariantString>(core+Rva(0x805800));
     struct Hook {unsigned rva;void* replacement;void** original;};
     const Hook hooks[]={
-        {0x1cdc10,reinterpret_cast<void*>(HookRebuild),reinterpret_cast<void**>(&originalRebuild)},
-        {0x1cb500,reinterpret_cast<void*>(HookRelease),reinterpret_cast<void**>(&originalRelease)},
-        {0x1d66c0,reinterpret_cast<void*>(HookCount),reinterpret_cast<void**>(&originalCount)},
-        {0x1cd970,reinterpret_cast<void*>(HookRefresh),reinterpret_cast<void**>(&originalRefresh)},
-        {0x1cf710,reinterpret_cast<void*>(HookRegister),reinterpret_cast<void**>(&originalRegister)}};
+        {0x1cdd90,reinterpret_cast<void*>(HookRebuild),reinterpret_cast<void**>(&originalRebuild)},
+        {0x1cb680,reinterpret_cast<void*>(HookRelease),reinterpret_cast<void**>(&originalRelease)},
+        {0x1d6860,reinterpret_cast<void*>(HookCount),reinterpret_cast<void**>(&originalCount)},
+        {0x1cdaf0,reinterpret_cast<void*>(HookRefresh),reinterpret_cast<void**>(&originalRefresh)},
+        {0x1cf890,reinterpret_cast<void*>(HookRegister),reinterpret_cast<void**>(&originalRegister)}};
     unsigned created=0;
     for(const auto& hook:hooks) {
-        if(MH_CreateHook(core+hook.rva,hook.replacement,hook.original)!=MH_OK)break;
+        if(stopped.load()||!HookUnchanged(hook.rva)||MH_CreateHook(core+Rva(hook.rva),hook.replacement,hook.original)!=MH_OK)break;
         ++created;
     }
     if(created!=sizeof hooks/sizeof *hooks) {
-        for(unsigned i=0;i<created;++i)MH_RemoveHook(core+hooks[i].rva);
+        for(unsigned i=0;i<created;++i)MH_RemoveHook(core+Rva(hooks[i].rva));
         Log("inactive: player filters hook preparation failed");return;
     }
     // Activate only these hooks; Settings uses its own compatibility boundary.
-    active=true;
-    for(const auto& hook:hooks)if(MH_EnableHook(core+hook.rva)!=MH_OK) {
+    for(const auto& hook:hooks)if(stopped.load()||MH_EnableHook(core+Rva(hook.rva))!=MH_OK) {
         active=false;
-        for(const auto& undo:hooks)MH_DisableHook(core+undo.rva);
+        for(const auto& undo:hooks)MH_DisableHook(core+Rva(undo.rva));
         Log("inactive: player filters activation failed");return;
     }
+    active=true;
     Log("ready: four player filter tabs; complete UI projection before native sorting/viewport; live validation outstanding");
 }
 }

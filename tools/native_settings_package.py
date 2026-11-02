@@ -19,6 +19,11 @@ ROOT = Path(__file__).resolve().parents[1]
 RELEASE = ROOT / 'build/native-settings-zh'
 DLL = 'TmpSettingsZh.dll'
 NATIVE_SOURCES = ('src/settings_zh.cpp','src/settings_zh.def','src/player_filter_logic.h','src/player_filters.h',
+                  'src/relocation_resolver.h','profiles/native-addresses.json','tools/prepare_relocation.py',
+                  'profiles/native-0794-relocation.json','profiles/native-0794-review.json',
+                  'tools/prepare_reviewed_0794.py','tests/test_native_update.py',
+                  'tests/native_relocation_test.cpp',
+                  'tests/test_native_relocation.py',
                   'src/player_profile.h','vendor/picojson/picojson.h','vendor/picojson/LICENSE.txt',
                   'tests/native_player_profile_test.h',
                   'profiles/player-filters-abi.json','tools/prepare_player_filters.py','tests/native_player_filters_test.h',
@@ -130,7 +135,7 @@ def seal(layout):
     p=pefile.PE(str(layout.release/DLL))
     require(p.FILE_HEADER.Machine==0x8664,'Expected x64 DLL')
     exports={s.name.decode() for s in p.DIRECTORY_ENTRY_EXPORT.symbols if s.name}
-    require(exports=={'scs_telemetry_init','scs_telemetry_shutdown'},'Unexpected exports or TMP SDK linkage')
+    require(exports=={'scs_telemetry_init','scs_telemetry_shutdown','TmpSettingsZhCheckCore'},'Unexpected exports or TMP SDK linkage')
     imports=[d.dll.decode() for d in p.DIRECTORY_ENTRY_IMPORT]
     require(not any('truckersmp' in s.lower() for s in imports),'TMP SDK import refused')
     report=json.loads((layout.release/'native-checks.json').read_text(encoding='utf-8'))
@@ -275,7 +280,9 @@ def configured_layout(tmp_root, game_root, release, action):
     paths = source_paths | {tmp_root / name for name in OUTPUTS}
     if action == 'seal':
         pins = {path: digest(plain(path)) for path in paths}
-        check_core(tmp_root / 'core_ets2mp.dll', read_json(ROOT / 'profiles/settings-abi.json'))
+        relocation = read_json(release / 'native-profile.json')['relocation']
+        check_core(tmp_root / 'core_ets2mp.dll', dict(schema=2, abi=1, profile_sha256=relocation['profile_sha256']),
+                   verifier=release / DLL)
         check_characters.validate((tmp_root/'data/shared_mod/fonts/OpenSans.ttf').read_bytes())
     else:
         manifest = json.loads((release/'package.json').read_text(encoding='utf-8'))

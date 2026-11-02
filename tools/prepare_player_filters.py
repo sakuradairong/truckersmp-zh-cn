@@ -31,7 +31,7 @@ def prepare(data, output):
     import capstone
     decoder = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_64)
     fixtures = ['#pragma once', 'struct PlayerFixtureCall {unsigned offset,target;};']
-    for name, start, size in [('MoveString', 0x81c50, 0x89), ('EraseRows', 0x1d3010, 0x187)]:
+    for name, start, size in [('MoveString', 0x81c90, 0x89), ('EraseRows', 0x1d3190, 0x187)]:
         raw = image.at(start, size)
         fixtures.append('inline constexpr unsigned char kPlayer%s[]={%s};' %
                         (name, ','.join('0x%02x' % b for b in raw)))
@@ -39,7 +39,7 @@ def prepare(data, output):
         for ins in decoder.disasm(raw, start):
             if ins.mnemonic == 'call':
                 target = int(ins.op_str, 0)
-                require(target in (0x54720, 0x966c88, 0x81c50, 0x82a90), 'Unexpected player fixture call')
+                require(target in (0x54720, 0x966ff8, 0x81c90, 0x82ad0), 'Unexpected player fixture call')
                 calls.append('{0x%x,0x%x},' % (ins.address - start, target))
         fixtures += ['inline constexpr PlayerFixtureCall kPlayer%sCalls[]={' % name, *calls, '};']
     (output / 'native_player_fixture.h').write_text('\n'.join(fixtures) + '\n', encoding='utf-8')

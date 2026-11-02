@@ -6,6 +6,11 @@ import subprocess
 from common import ROOT, require
 
 FILES = {
+    'profiles/native-addresses.json', 'src/relocation_resolver.h', 'tools/prepare_relocation.py',
+    'tests/native_relocation_test.cpp',
+    'tests/test_native_relocation.py',
+    'profiles/native-0794-relocation.json', 'profiles/native-0794-review.json',
+    'tools/prepare_reviewed_0794.py', 'tests/test_native_update.py',
     '.gitignore', '.gitattributes', 'README.md', 'README.en.md', 'LICENSE',
     'THIRD_PARTY_NOTICES.md', 'requirements-build.txt', 'build-settings-zh.ps1',
     'profiles/settings-zh-cn.json', 'profiles/resource-edits.json', 'profiles/freight-zh-cn.json',

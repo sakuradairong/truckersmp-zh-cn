@@ -1,4 +1,5 @@
 // Isolated process; never loads core_ets2mp.dll or opens the game process.
+#define TMPZH_TEST_FIXTURE
 #include "../src/settings_zh.cpp"
 #include "native_assign_fixture.h"
 #include "native_font_fixture.h"
@@ -22,8 +23,8 @@ Assign MakeAssignFixture() {
     unsigned stub=static_cast<unsigned>((sizeof kAssignCode+15)&~15);
     for(const auto& call:kAssignCalls) {
         void* fn=reinterpret_cast<void*>(&FixtureError);
-        if(call.target==0x9bb3f0)fn=reinterpret_cast<void*>(&FixtureCopy);
-        if(call.target==0x82680)fn=reinterpret_cast<void*>(&FixtureAllocate);
+        if(call.target==0x9bb760)fn=reinterpret_cast<void*>(&FixtureCopy);
+        if(call.target==0x826c0)fn=reinterpret_cast<void*>(&FixtureAllocate);
         if(call.target==0x54720)fn=reinterpret_cast<void*>(&FixtureFree);
         code[stub]=0x48;code[stub+1]=0xb8;std::memcpy(code+stub+2,&fn,8);code[stub+10]=0xff;code[stub+11]=0xe0;
         Check(code[call.offset]==0xe8,"fixture relative call encoding");
@@ -76,7 +77,7 @@ struct FakeControl {
     std::array<void*,3> head{};
     std::vector<std::array<void*,3>> nodes;
     FakeControl(const char* text,bool concreteLabel=true,const char* name="") {
-        void* vt=core+(concreteLabel?kLabelVtable:0xdf01e0);
+        void* vt=core+(concreteLabel?kLabelVtable:0xdf01c8);
         *reinterpret_cast<void**>(data)=vt;*reinterpret_cast<void**>(data+0x150)=child;
         *reinterpret_cast<void**>(child)=core+kTextVtable;
         EmptyWide(font.name);nativeAssign(&font.name,L"OpenSans.ttf",12);font.size=14;
@@ -114,9 +115,9 @@ void FillGuards(unsigned char* image) {
     auto* nt=reinterpret_cast<IMAGE_NT_HEADERS64*>(image+0x80);nt->Signature=IMAGE_NT_SIGNATURE;
     nt->FileHeader.Machine=IMAGE_FILE_MACHINE_AMD64;nt->OptionalHeader.Magic=IMAGE_NT_OPTIONAL_HDR64_MAGIC;nt->OptionalHeader.SizeOfImage=kImageSize;
     for(const auto& g:kGuards)std::memcpy(image+g.rva,g.bytes,g.size);
-    *reinterpret_cast<void**>(image+kComboVtable+0x10)=image+0x13e860;
-    *reinterpret_cast<void**>(image+kLabelVtable+0x558)=image+0x336bc0;
-    *reinterpret_cast<void**>(image+0xdf01e0+0x558)=image+0x336bc0;
+    *reinterpret_cast<void**>(image+kComboVtable+0x10)=image+0x13e920;
+    *reinterpret_cast<void**>(image+kLabelVtable+0x558)=image+0x336f20;
+    *reinterpret_cast<void**>(image+0xdf01c8+0x558)=image+0x336f20;
     for(const auto& l:kLiterals)std::memcpy(image+l.source,l.text.en,std::strlen(l.text.en)+1);
 }
 void StubBuild(void*){}
@@ -168,15 +169,15 @@ void TestScopesAndDescriptor() {
     const auto before=items;
     optionScope=group;
     for(unsigned i=0;i<group->count;++i) {
-        auto* pair=ConversionText(&items[i],0x13e9a0);
+        auto* pair=ConversionText(&items[i],0x13ea60);
         Check(pair==group->pairs+i,"option routing preserves order and identity");
         Text value(pair->en);Check(TranslateWide(&value.wide,*pair,3),"option wide string translated");
         Check(NarrowIs(&value.narrow,pair->en),"option original text retained");
     }
     Check(!std::memcmp(before.data(),items.data(),items.size()*sizeof(NativeString)),"source enum vector unchanged");
-    Check(!ConversionText(first,0x13ee20),"device/string combo path excluded");
-    Check(!ConversionText(first,0x13f0e0),"dynamic device path excluded");
-    optionScope=nullptr;Check(!ConversionText(first,0x13e9a0),"unscoped static-looking text excluded");
+    Check(!ConversionText(first,0x13eee0),"device/string combo path excluded");
+    Check(!ConversionText(first,0x13f1a0),"dynamic device path excluded");
+    optionScope=nullptr;Check(!ConversionText(first,0x13ea60),"unscoped static-looking text excluded");
     std::swap(items[0],items[1]);Check(!OptionsFor(object),"reordered or unexpected options rejected");std::swap(items[0],items[1]);
     *reinterpret_cast<void**>(object)=nullptr;Check(!OptionsFor(object),"foreign descriptor vtable rejected");
     originalLabel=&StubRender;
@@ -265,6 +266,7 @@ void* StubFreightInsert(void*,const void* display,const void* identifier) {
     return insertedItem;
 }
 void TestFreightFonts() {
+    freightEnabled=true;
     alignas(8) unsigned char owner[0xc8]{};
     *reinterpret_cast<void**>(owner)=core+kFreightVtable;
     FakeControl* controls[7]{};
@@ -364,13 +366,16 @@ int Run(int argc,char** argv) {
         Text other(literal.text.en);TranslateLiteral(&other,literal.text.en,literal.caller);
         Check(WideIsEnglish(&other.wide,literal.text.en),"user-owned equal text excluded by pointer");
     }
-    Text title("Settings");Check(ConversionText(&title.narrow,0x32f2de)==&kWindow,"window title routed");
-    windowScope=false;Check(!ConversionText(&title.narrow,0x32f2de),"other windows excluded");
+    Text title("Settings");Check(ConversionText(&title.narrow,0x32f63e)==&kWindow,"window title routed");
+    windowScope=false;Check(!ConversionText(&title.narrow,0x32f63e),"other windows excluded");
     TestScopesAndDescriptor();
     TestNativeFontMeasurement();
     TestAlreadyCreatedWindow();
     TestFreightFonts();
     playerfilterfixture::Run();
+    enabled=false;playerfilters::active=true;
+    Check(playerfilters::Ready(),"player compatibility does not depend on Settings enabled state");
+    playerfilters::active=false;enabled=true;
     playerprofilefixture::Run();
     Text unknown("My Player 公开");Check(!TranslateText(&unknown,kRows[0].label,0),"player-owned text unchanged");
     Text disabled(kRows[0].label.en);enabled=false;Check(!TranslateText(&disabled,kRows[0].label,0),"disabled adapter forwards unchanged");
@@ -378,8 +383,8 @@ int Run(int argc,char** argv) {
     // MinHook must relocate all reviewed prologues without enabling them.
     DWORD old;Check(VirtualProtect(core,kImageSize,PAGE_EXECUTE_READWRITE,&old)!=0,"fake code protection");
     Check(MH_Initialize()==MH_OK,"isolated MinHook initialized");
-    for(unsigned rva:{0x13d110u,0x13de20u,0x13e130u,0x13e860u,0xf0310u,0xef4f0u,0xf0210u,0x13da10u,
-                      0xfc300u,0xfc260u,0x3304f0u,0x331700u,0x1cdc10u,0x1cb500u,0x1d66c0u,0x1cf710u,0x1cd970u}) {
+    for(unsigned rva:{0x13d1d0u,0x13dee0u,0x13e1f0u,0x13e920u,0xf0370u,0xef550u,0xf0270u,0x13dad0u,
+                      0xfc360u,0xfc2c0u,0x330850u,0x331a60u,0x1cdd90u,0x1cb680u,0x1d6860u,0x1cf890u,0x1cdaf0u}) {
         void* original=nullptr;Check(MH_CreateHook(core+rva,reinterpret_cast<void*>(&HookCString),&original)==MH_OK,"reviewed native prologue trampoline");
         Check(original!=nullptr,"trampoline produced");Check(MH_RemoveHook(core+rva)==MH_OK,"unarmed test hook removed");
     }

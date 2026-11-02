@@ -9,8 +9,8 @@ T Function(const unsigned char (&bytes)[N],const PlayerFixtureCall (&calls)[M]) 
     for(const auto& call:calls) {
         void* fn=reinterpret_cast<void*>(FixtureError);
         if(call.target==0x54720)fn=reinterpret_cast<void*>(FixtureFree);
-        if(call.target==0x81c50)fn=reinterpret_cast<void*>(playerfilters::moveString);
-        if(call.target==0x82a90)fn=reinterpret_cast<void*>(DestroyNarrow);
+        if(call.target==0x81c90)fn=reinterpret_cast<void*>(playerfilters::moveString);
+        if(call.target==0x82ad0)fn=reinterpret_cast<void*>(DestroyNarrow);
         code[stub]=0x48;code[stub+1]=0xb8;std::memcpy(code+stub+2,&fn,8);
         code[stub+10]=0xff;code[stub+11]=0xe0;
         const auto displacement=static_cast<std::int32_t>(stub-call.offset-5);
@@ -99,8 +99,8 @@ void Run() {
     Check(!Verify(),"filters independently refuse unknown image");
     for(const auto& g:playerfiltersabi::kGuards)std::memcpy(core+g.rva,g.bytes,g.size);
     Check(Verify(),"reviewed player ABI accepted");
-    core[0x1cdc10]^=1;
-    Check(!Verify()&&VerifyImage(),"player ABI drift leaves Settings compatibility intact");core[0x1cdc10]^=1;
+    core[0x1cdd90]^=1;
+    Check(!Verify()&&VerifyImage(),"player ABI drift leaves Settings compatibility intact");core[0x1cdd90]^=1;
     core[0x3000]^=1;Check(Verify(),"unrelated bytes do not gate player filters");core[0x3000]^=1;
     moveString=Function<MoveString>(kPlayerMoveString,kPlayerMoveStringCalls);
     eraseRows=Function<EraseRows>(kPlayerEraseRows,kPlayerEraseRowsCalls);

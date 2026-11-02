@@ -57,5 +57,32 @@ def check_bytes(data, profile):
     return dict(compatible=True, guards=len(profile['guards']), client_release_pinned=False)
 
 
-def check_core(path, profile):
+def check_core(path, profile, *, verifier=None):
+    if profile.get('schema') == 2:
+        import ctypes
+        import json
+        import _ctypes
+        require(profile.get('abi') == 1 and verifier is not None, 'Missing native compatibility verifier')
+        core = plain(Path(path)).absolute()
+        dll = plain(Path(verifier)).absolute()
+        # This is our bundled verifier DLL, not the client. No SCS initializer
+        # is called, and the export only reads the target PE as a data file.
+        library = ctypes.WinDLL(str(dll), winmode=0x00001100)
+        try:
+            check = library.TmpSettingsZhCheckCore
+            check.argtypes = [ctypes.c_wchar_p, ctypes.c_void_p, ctypes.c_uint]
+            check.restype = ctypes.c_int
+            output = ctypes.create_string_buffer(65536)
+            require(check(str(core), output, len(output)) == 1, 'Native compatibility check failed')
+            result = json.loads(output.value.decode('utf-8'))
+            require(isinstance(result, dict) and result.get('schema') == 2, 'Invalid native compatibility result')
+            require(result.get('compatible') is True, 'Settings code/ABI changed: ' + str(result.get('detail', 'unknown')))
+            require(result.get('abi') == 1 and result.get('profile_sha256') == profile.get('profile_sha256') and
+                    all(type(result.get(name)) is bool for name in ('settings', 'freight', 'players', 'relocated')),
+                    'Bundled Settings compatibility identity differs')
+            return dict(result, client_release_pinned=False)
+        except (OSError, AttributeError, UnicodeError, json.JSONDecodeError) as exc:
+            raise ValueError('Native compatibility check failed: ' + str(exc)) from exc
+        finally:
+            _ctypes.FreeLibrary(library._handle)
     return check_bytes(plain(Path(path)).read_bytes(), profile)

@@ -25,11 +25,11 @@ def prepare(native, assets):
         found = [row for row in evidence if row['english'] == english]
         require(len(found) == 1, 'Ambiguous Settings footer source')
         literals.append(dict(rva=found[0]['source_rva'], text=english))
-    compatibility = dict(schema=1,
-        guards=[dict(name=row['name'], rva=row['rva'], size=len(bytes.fromhex(row['bytes'])),
-                     sha256=sha(bytes.fromhex(row['bytes']))) for row in profile['runtime_guards']],
-        pointers=[dict(rva=0xdd8330 + 0x10, target=0x13e860), dict(rva=0xdf2450 + 0x558, target=0x336bc0)],
-        literals=literals)
+    require(profile.get('relocation', {}).get('schema') == 2, 'Relocation build evidence missing')
+    relocation_checks = read_json(native / 'relocation-checks.json')
+    require(relocation_checks.get('passed') is True and relocation_checks.get('checks', 0) >= 15 and
+            (native / 'relocation-checks.json').stat().st_mtime_ns >= built, 'Native relocation checks have not passed')
+    compatibility = dict(schema=2, abi=1, profile_sha256=profile['relocation']['profile_sha256'])
     assets.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(native / 'TmpSettingsZh.dll', assets / 'TmpSettingsZh.dll')
     atomic_json(assets / 'settings-compatibility.json', compatibility)

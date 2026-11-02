@@ -98,6 +98,7 @@ def inspect(tmp_root, state_root=None, *, game_root=None, include_settings=False
     require(not str(tmp_root).startswith(('\\\\', '//')), 'Use local disk paths, not network shares')
     tmp_root = plain(Path(tmp_root).absolute())
     compatibility, detail = True, ''
+    native_compatibility = {}
     try:
         resources.check_compatibility(tmp_root)
     except (ValueError, OSError) as exc:
@@ -108,13 +109,13 @@ def inspect(tmp_root, state_root=None, *, game_root=None, include_settings=False
     if include_settings:
         try:
             game = game_directory(game_root or settings.get('game_root'))
-            _, profile = settings_bundle(assets)
-            settings_compatibility.check_core(tmp_root / 'core_ets2mp.dll', profile)
+            verifier, profile = settings_bundle(assets)
+            native_compatibility = settings_compatibility.check_core(tmp_root / 'core_ets2mp.dll', profile, verifier=verifier)
             require(not settings['can_restore'] or settings.get('game_root') == str(game),
                     'Restore Settings before changing the ETS2 directory')
         except (ValueError, OSError) as exc:
             compatibility, detail = False, str(exc)
-    return dict(compatible=compatibility, detail=detail, settings=settings,
+    return dict(compatible=compatibility, detail=detail, settings=settings, native_compatibility=native_compatibility,
                 **dict(status, resource_can_restore=status['can_restore'],
                        can_restore=status['can_restore'] or settings['can_restore']))
 

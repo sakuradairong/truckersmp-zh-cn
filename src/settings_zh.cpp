@@ -18,9 +18,20 @@
 #include "settings_profile.h"
 #include "player_filter_logic.h"
 #include "player_filters_profile.h"
+#include "relocation_resolver.h"
+#include "relocation_profile.h"
 
 namespace {
 using namespace settingszh;
+tmpcompat::Result compatibility;
+std::vector<unsigned char> verifiedImage;
+unsigned Rva(unsigned baseline) {
+#ifdef TMPZH_TEST_FIXTURE
+    return baseline;
+#else
+    return compatibility.Find(baseline);
+#endif
+}
 // Opaque MSVC release string layout. Never construct/free these with our CRT.
 struct NativeString { unsigned char storage[16]; std::size_t size, capacity; };
 static_assert(sizeof(NativeString)==32 && offsetof(NativeString,size)==16);
@@ -45,7 +56,7 @@ Build originalFreightDestroy=nullptr;
 void* freightOwner=nullptr;
 void* freightControls[7]{};
 unsigned freightOffsets[7]{};
-std::atomic<bool> freightEnabled{true};
+std::atomic<bool> freightEnabled{false};
 SetFont nativeSetFont=nullptr;
 Construct originalCString=nullptr, originalString=nullptr, originalConvert=nullptr;
 Render originalLabel=nullptr, originalCombo=nullptr;
@@ -55,6 +66,15 @@ Assign nativeAssign=nullptr;
 SetLabel nativeSetLabel=nullptr;
 DestroyText nativeDestroyText=nullptr;
 unsigned char* core=nullptr;
+bool HookUnchanged(unsigned id) {
+#ifdef TMPZH_TEST_FIXTURE
+    (void)id;return true;
+#else
+    unsigned at=Rva(id);unsigned char actual[32];
+    return at&&at<=verifiedImage.size()&&sizeof actual<=verifiedImage.size()-at&&
+        tmpcompat::CopyReadable(actual,core+at,sizeof actual)&&!std::memcmp(actual,verifiedImage.data()+at,sizeof actual);
+#endif
+}
 std::atomic<bool> enabled{false}, initialized{false}, stopped{false};
 std::atomic<unsigned> counts[5]{}; // label, tooltip, tab, option, window/footer
 HANDLE stopEvent=nullptr, workerThread=nullptr;
@@ -164,7 +184,7 @@ void TranslateDescriptor(void* object) {
 const Options* OptionsFor(void* object) {
     if(pageScope<0||!enabled.load()||!Readable(object,0xb8))return nullptr;
     auto* p=static_cast<unsigned char*>(object);
-    if(*reinterpret_cast<void**>(p)!=core+kComboVtable)return nullptr;
+    if(*reinterpret_cast<void**>(p)!=core+Rva(kComboVtable))return nullptr;
     for(const auto& group:kOptions) {
         if(group.page!=static_cast<unsigned>(pageScope)||!NarrowIs(p+0x28,group.label))continue;
         const NativeString *first=nullptr,*last=nullptr;
@@ -179,12 +199,12 @@ const Options* OptionsFor(void* object) {
 void TranslateLiteral(void* object,const void* source,std::uintptr_t caller) {
     if(!windowScope||!enabled.load())return;
     for(const auto& item:kLiterals)
-        if(caller==item.caller&&source==core+item.source) {TranslateText(object,item.text,4);return;}
+        if(caller==Rva(item.caller)&&source==core+Rva(item.source)) {TranslateText(object,item.text,4);return;}
 }
 const Pair* ConversionText(const void* source,std::uintptr_t caller) {
     if(!enabled.load())return nullptr;
-    if(windowScope&&caller==0x32f2de&&NarrowIs(source,kWindow.en))return &kWindow;
-    if(optionScope&&caller==0x13e9a0)
+    if(windowScope&&caller==Rva(0x32f63e)&&NarrowIs(source,kWindow.en))return &kWindow;
+    if(optionScope&&caller==Rva(0x13ea60))
         for(unsigned i=0;i<optionScope->count;++i)if(NarrowIs(source,optionScope->pairs[i].en))return optionScope->pairs+i;
     return nullptr;
 }
@@ -204,7 +224,7 @@ void* PointerAt(const void* object,std::size_t offset) {
 void* DisplayText(void* control) {
     if(!Readable(control,0x158))return nullptr;
     void* table=PointerAt(control,0);
-    if(!Readable(table,0x560)||PointerAt(table,0x558)!=core+0x336bc0)return nullptr;
+    if(!Readable(table,0x560)||PointerAt(table,0x558)!=core+Rva(0x336f20))return nullptr;
     void* child=PointerAt(control,0x150);
     return Readable(child,0x168)?static_cast<unsigned char*>(child)+0x128:nullptr;
 }
@@ -215,7 +235,7 @@ bool DisplayIs(void* control,const Pair& pair) {
 bool BindFont(void* control,bool freight=false) {
     if(!nativeSetFont||!nativeAssign)return false;
     void* child=PointerAt(control,0x150);
-    if(!Readable(child,0x190)||PointerAt(child,0)!=core+kTextVtable)return false;
+    if(!Readable(child,0x190)||PointerAt(child,0)!=core+Rva(kTextVtable))return false;
     auto* source=static_cast<NativeFont*>(PointerAt(child,0x168));
     if(!Readable(source,sizeof(NativeFont))||!Wide(&source->name)||
        !std::isfinite(source->size)||source->size<4||source->size>(freight?21:48)||source->bold>1)return false;
@@ -275,8 +295,8 @@ bool Children(void* control,void** output,unsigned& count,bool semantic=false) {
 constexpr const char* kFreightNames[]={"sourceCities","sourceCompanies","targetCities",
     "targetCompanies","cargos","trailers","urgency"};
 bool FreightRegistered(void* control) {
-    if(!enabled.load()||!freightEnabled.load()||
-       PointerAt(freightOwner,0)!=core+kFreightVtable)return false;
+    if(stopped.load()||!freightEnabled.load()||
+       PointerAt(freightOwner,0)!=core+Rva(kFreightVtable))return false;
     for(unsigned i=0;i<7;++i)if(freightControls[i]==control&&
         NarrowIs(static_cast<unsigned char*>(control)+0xd0,kFreightNames[i])) {
         // A destroyed/replaced window must not leave a usable stale registration.
@@ -304,8 +324,8 @@ void BindFreightMenu(void* menu) {
     }
 }
 void RefreshFreight(void* owner) {
-    if(!enabled.load()||!freightEnabled.load()||
-       PointerAt(owner,0)!=core+kFreightVtable||!Readable(owner,0xc8))return;
+    if(stopped.load()||!freightEnabled.load()||
+       PointerAt(owner,0)!=core+Rva(kFreightVtable)||!Readable(owner,0xc8))return;
     if(owner==freightOwner) {
         bool same=true;
         for(unsigned i=0;i<7;++i)if(PointerAt(owner,freightOffsets[i])!=freightControls[i])same=false;
@@ -369,13 +389,13 @@ void RefreshPageTree(void* content,unsigned page) {
         if(!Readable(control,0xe8))continue;
         // Only the concrete static Label class is eligible. TextBox, MenuItem,
         // device selectors and user-owned text use different concrete vtables.
-        if(PointerAt(control,0)==core+kLabelVtable)
+        if(PointerAt(control,0)==core+Rva(kLabelVtable))
             for(const auto& row:kRows)if(row.page==page) {
                 TranslateDisplay(control,row.label,0);
                 if(row.tooltip.en)TranslateDisplay(control,row.tooltip,1);
             }
         void* tooltip=PointerAt(control,0x80);
-        if(PointerAt(tooltip,0)==core+kLabelVtable)
+        if(PointerAt(tooltip,0)==core+Rva(kLabelVtable))
             for(const auto& row:kRows)if(row.page==page&&row.tooltip.en)TranslateDisplay(tooltip,row.tooltip,1);
         void* children[256];unsigned count=0;
         if(Children(control,children,count))for(unsigned i=0;i<count&&used<1024;++i)pending[used++]=children[i];
@@ -455,14 +475,14 @@ void* HookCString(void* object,const void* source) {
 void* HookString(void* object,const void* source) {
     auto caller=Caller(_ReturnAddress());
     void* result=originalString(object,source);
-    if(enabled.load()&&caller==0x13de5a&&pageScope>=0)TranslateText(result,kPages[pageScope],2);
+    if(enabled.load()&&caller==Rva(0x13df1a)&&pageScope>=0)TranslateText(result,kPages[pageScope],2);
     return result;
 }
 void* HookConvert(void* object,const void* source) {
     auto caller=Caller(_ReturnAddress());
     const Pair* text=ConversionText(source,caller);
     void* result=originalConvert(object,source);
-    if(text)TranslateWide(result,*text,caller==0x13e9a0?3:4);
+    if(text)TranslateWide(result,*text,caller==Rva(0x13ea60)?3:4);
     return result;
 }
 
@@ -470,6 +490,9 @@ void* HookConvert(void* object,const void* source) {
 #include "player_filters.h"
 
 bool VerifyImage() {
+#ifndef TMPZH_TEST_FIXTURE
+    return (compatibility.capabilities&1)!=0;
+#else
     if(!Readable(core,4096))return false;
     const auto* dos=reinterpret_cast<IMAGE_DOS_HEADER*>(core);
     if(dos->e_magic!=IMAGE_DOS_SIGNATURE||dos->e_lfanew<0||dos->e_lfanew>3072)return false;
@@ -479,64 +502,83 @@ bool VerifyImage() {
     const auto inImage=[imageSize](unsigned rva,std::size_t size) {return rva<imageSize&&size<=imageSize-rva&&Readable(core+rva,size);};
     for(const auto& g:kGuards)if(!inImage(g.rva,g.size)||std::memcmp(core+g.rva,g.bytes,g.size))return false;
     if(!inImage(kComboVtable,0x18)||!inImage(kLabelVtable,0x560))return false;
-    if(!Readable(core+kComboVtable,0x18)||*reinterpret_cast<void**>(core+kComboVtable+0x10)!=core+0x13e860)return false;
-    if(!Readable(core+kLabelVtable,0x560)||PointerAt(core+kLabelVtable,0x558)!=core+0x336bc0)return false;
+    if(!Readable(core+Rva(kComboVtable),0x18)||*reinterpret_cast<void**>(core+Rva(kComboVtable)+0x10)!=core+Rva(0x13e920))return false;
+    if(!Readable(core+Rva(kLabelVtable),0x560)||PointerAt(core+Rva(kLabelVtable),0x558)!=core+Rva(0x336f20))return false;
     for(const auto& l:kLiterals)if(!inImage(l.source,std::strlen(l.text.en)+1)||std::strcmp(reinterpret_cast<char*>(core+l.source),l.text.en))return false;
     return true;
+#endif
 }
 void Attach(HMODULE module) {
     core=reinterpret_cast<unsigned char*>(module);
-    if(!VerifyImage()){Log("inactive: loaded TMP code/ABI guard mismatch");return;}
+    HMODULE pinned=nullptr;
+    if(!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS|GET_MODULE_HANDLE_EX_FLAG_PIN,reinterpret_cast<LPCWSTR>(module),&pinned))return;
+    try {
+        auto snapshot=tmpcompat::Image::Module(module);
+        compatibility=tmpcompat::Resolver(snapshot,tmpcompat::Profile().c_str()).Run();
+        verifiedImage=std::move(snapshot.bytes);
+    } catch(const std::exception& e) {
+        Log(e.what());Log("inactive: relocation/ABI verification failed; original UI retained");return;
+    }
+    char detail[320];std::snprintf(detail,sizeof detail,"compatibility: settings=%u freight=%u players=%u relocated=%u; %s",
+        !!(compatibility.capabilities&1),!!(compatibility.capabilities&2),!!(compatibility.capabilities&4),compatibility.moved?1:0,compatibility.detail.c_str());Log(detail);
+    if(!compatibility.capabilities)return;
     wchar_t fontPath[MAX_PATH];
     DWORD pathSize=GetModuleFileNameW(module,fontPath,MAX_PATH);
     if(!pathSize||pathSize>=MAX_PATH)return;
     wchar_t* slash=std::wcsrchr(fontPath,L'\\');
     if(!slash)return;
-    for(const wchar_t* suffix:{L"data\\shared_mod\\fonts\\TmpSettingsZH.ttf",L"data\\shared_mod\\fonts\\TmpSettingsZH-Semibold.ttf",
-                              L"data\\shared_mod\\fonts\\TmpFreightZH.ttf",L"data\\shared_mod\\fonts\\TmpFreightZH-Semibold.ttf"}) {
+    struct FontCheck{const wchar_t* suffix;unsigned group;};
+    for(const auto& font:{FontCheck{L"data\\shared_mod\\fonts\\TmpSettingsZH.ttf",1},FontCheck{L"data\\shared_mod\\fonts\\TmpSettingsZH-Semibold.ttf",1},
+                         FontCheck{L"data\\shared_mod\\fonts\\TmpFreightZH.ttf",2},FontCheck{L"data\\shared_mod\\fonts\\TmpFreightZH-Semibold.ttf",2}}) {
+        const auto* suffix=font.suffix;
         if(wcscpy_s(slash+1,MAX_PATH-(slash+1-fontPath),suffix))return;
         const DWORD attributes=GetFileAttributesW(fontPath);
         if(attributes==INVALID_FILE_ATTRIBUTES||(attributes&FILE_ATTRIBUTE_DIRECTORY)) {
-            Log("inactive: compact Settings font missing; update resource localization with this installer");return;
+            compatibility.capabilities&=~font.group;
+            Log("inactive: required compact font missing for one feature; update resource localization");
         }
     }
-    HMODULE pinned=nullptr;
-    if(!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS|GET_MODULE_HANDLE_EX_FLAG_PIN,reinterpret_cast<LPCWSTR>(module),&pinned))return;
-    nativeAssign=reinterpret_cast<Assign>(core+0x81fe0);
-    nativeSetLabel=reinterpret_cast<SetLabel>(core+0x336bc0);
-    nativeSetFont=reinterpret_cast<SetFont>(core+0x3374c0);
-    nativeDestroyText=reinterpret_cast<DestroyText>(core+0xef630);
+    nativeAssign=reinterpret_cast<Assign>(core+Rva(0x82020));
+    nativeSetLabel=reinterpret_cast<SetLabel>(core+Rva(0x336f20));
+    nativeSetFont=reinterpret_cast<SetFont>(core+Rva(0x337820));
+    nativeDestroyText=reinterpret_cast<DestroyText>(core+Rva(0xef690));
     if(MH_Initialize()!=MH_OK){Log("inactive: private MinHook initialization failed");return;}
     struct HookSpec {unsigned rva;void* detour;void** original;};
     const HookSpec hooks[]={
-        {0x13d110,reinterpret_cast<void*>(&HookWindow),reinterpret_cast<void**>(&originalWindow)},
-        {0x13de20,reinterpret_cast<void*>(&HookPage),reinterpret_cast<void**>(&originalPage)},
-        {0x13e130,reinterpret_cast<void*>(&HookLabel),reinterpret_cast<void**>(&originalLabel)},
-        {0x13e860,reinterpret_cast<void*>(&HookCombo),reinterpret_cast<void**>(&originalCombo)},
-        {0xf0310,reinterpret_cast<void*>(&HookCString),reinterpret_cast<void**>(&originalCString)},
-        {0xef4f0,reinterpret_cast<void*>(&HookString),reinterpret_cast<void**>(&originalString)},
-        {0xf0210,reinterpret_cast<void*>(&HookConvert),reinterpret_cast<void**>(&originalConvert)}
-        ,{0x13da10,reinterpret_cast<void*>(&HookShow),reinterpret_cast<void**>(&originalShow)}
-        ,{0xfc300,reinterpret_cast<void*>(&HookFreightUpdate),reinterpret_cast<void**>(&originalFreightUpdate)}
-        ,{0xfc260,reinterpret_cast<void*>(&HookFreightDestroy),reinterpret_cast<void**>(&originalFreightDestroy)}
-        ,{0x3304f0,reinterpret_cast<void*>(&HookFreightComboItem),reinterpret_cast<void**>(&originalFreightComboItem)}
-        ,{0x331700,reinterpret_cast<void*>(&HookFreightAutocompleteItem),reinterpret_cast<void**>(&originalFreightAutocompleteItem)}
+        {0x13d1d0,reinterpret_cast<void*>(&HookWindow),reinterpret_cast<void**>(&originalWindow)},
+        {0x13dee0,reinterpret_cast<void*>(&HookPage),reinterpret_cast<void**>(&originalPage)},
+        {0x13e1f0,reinterpret_cast<void*>(&HookLabel),reinterpret_cast<void**>(&originalLabel)},
+        {0x13e920,reinterpret_cast<void*>(&HookCombo),reinterpret_cast<void**>(&originalCombo)},
+        {0xf0370,reinterpret_cast<void*>(&HookCString),reinterpret_cast<void**>(&originalCString)},
+        {0xef550,reinterpret_cast<void*>(&HookString),reinterpret_cast<void**>(&originalString)},
+        {0xf0270,reinterpret_cast<void*>(&HookConvert),reinterpret_cast<void**>(&originalConvert)}
+        ,{0x13dad0,reinterpret_cast<void*>(&HookShow),reinterpret_cast<void**>(&originalShow)}
+        ,{0xfc360,reinterpret_cast<void*>(&HookFreightUpdate),reinterpret_cast<void**>(&originalFreightUpdate)}
+        ,{0xfc2c0,reinterpret_cast<void*>(&HookFreightDestroy),reinterpret_cast<void**>(&originalFreightDestroy)}
+        ,{0x330850,reinterpret_cast<void*>(&HookFreightComboItem),reinterpret_cast<void**>(&originalFreightComboItem)}
+        ,{0x331a60,reinterpret_cast<void*>(&HookFreightAutocompleteItem),reinterpret_cast<void**>(&originalFreightAutocompleteItem)}
     };
-    unsigned created=0;
-    for(const auto& hook:hooks) {
-        if(MH_CreateHook(core+hook.rva,hook.detour,hook.original)!=MH_OK)break;
-        ++created;
-    }
-    if(created!=sizeof hooks/sizeof *hooks||stopped.load()) {
-        for(unsigned i=0;i<created;++i)MH_RemoveHook(core+hooks[i].rva);
-        Log("inactive: incomplete hook preparation; no translation enabled");return;
-    }
-    for(const auto& hook:hooks)if(MH_QueueEnableHook(core+hook.rva)!=MH_OK){Log("inactive: hook queue failed");return;}
-    if(MH_ApplyQueued()!=MH_OK){Log("inactive: hook activation failed; original forwarding retained");return;}
-    enabled=true;
-    if(stopped.load()){enabled=false;return;}
+    const auto arm=[&](unsigned begin,unsigned end,unsigned group) {
+        if(!(compatibility.capabilities&group)||stopped.load())return false;
+        unsigned created=begin;
+        for(;created<end;++created){const auto& hook=hooks[created];if(!HookUnchanged(hook.rva)||MH_CreateHook(core+Rva(hook.rva),hook.detour,hook.original)!=MH_OK)break;}
+        bool ok=created==end&&!stopped.load();
+        bool activationAttempted=false;
+        if(ok)for(unsigned i=begin;i<end;++i){activationAttempted=true;if(stopped.load()||MH_EnableHook(core+Rva(hooks[i].rva))!=MH_OK){ok=false;break;}}
+        if(!ok){for(unsigned i=begin;i<created;++i){MH_DisableHook(core+Rva(hooks[i].rva));
+                // An in-flight callback may still return through its trampoline.
+                // Once activation starts, keep forwarding allocations pinned.
+                if(!activationAttempted)MH_RemoveHook(core+Rva(hooks[i].rva));}
+            Log("inactive: feature hook transaction failed; forwarding retained");}
+        return ok;
+    };
+    enabled=arm(0,8,1);
+    freightEnabled=arm(8,12,2);
+    if(stopped.load()){enabled=false;freightEnabled=false;return;}
     playerfilters::Attach();
-    Log("ready: experimental Settings zh-CN; code/ABI compatible; five pages; native wide strings; no TMP SDK");
+    verifiedImage.clear();verifiedImage.shrink_to_fit();
+    if(enabled.load())Log("ready: experimental Settings zh-CN; verified relocation/ABI; five pages");
+    if(freightEnabled.load())Log("ready: freight font adapter; verified relocation/ABI");
     Log("ready means hooks armed only; in-game loading, appearance and selection still require observation");
 }
 DWORD WINAPI Worker(void*) {
@@ -552,6 +594,30 @@ DWORD WINAPI Worker(void*) {
     return 0;
 }
 } // namespace
+
+// The installer calls the exact runtime resolver. Reading a PE never executes it.
+extern "C" __declspec(dllexport) int TmpSettingsZhCheckCore(const wchar_t* path,char* output,unsigned capacity) noexcept {
+    if(!path||!output||capacity<4096)return 0;
+    try {
+        auto image=tmpcompat::Image::File(path);
+        auto result=tmpcompat::Resolver(image,tmpcompat::Profile().c_str()).Run();
+        picojson::object report;
+        report["schema"]=picojson::value(2.0);report["abi"]=picojson::value(1.0);
+        report["compatible"]=picojson::value(result.capabilities!=0);
+        report["settings"]=picojson::value((result.capabilities&1)!=0);
+        report["freight"]=picojson::value((result.capabilities&2)!=0);
+        report["players"]=picojson::value((result.capabilities&4)!=0);
+        report["relocated"]=picojson::value(result.moved);
+        report["profile_sha256"]=picojson::value(std::string(tmpcompat::kProfileDigest));
+        report["detail"]=picojson::value(result.detail);
+        auto text=picojson::value(report).serialize();if(text.size()+1>capacity)return 0;
+        std::memcpy(output,text.c_str(),text.size()+1);return 1;
+    } catch(const std::exception& e) {
+        picojson::object report;report["schema"]=picojson::value(2.0);report["compatible"]=picojson::value(false);
+        report["detail"]=picojson::value(std::string(e.what()));auto text=picojson::value(report).serialize();
+        if(text.size()+1>capacity)return 0;std::memcpy(output,text.c_str(),text.size()+1);return 1;
+    } catch(...) {return 0;}
+}
 
 SCSAPI_RESULT scs_telemetry_init(const scs_u32_t version,const scs_telemetry_init_params_t* const params) {
     if(version!=SCS_TELEMETRY_VERSION_1_00&&version!=SCS_TELEMETRY_VERSION_1_01)return SCS_RESULT_unsupported;
@@ -577,7 +643,7 @@ SCSAPI_RESULT scs_telemetry_init(const scs_u32_t version,const scs_telemetry_ini
     return SCS_RESULT_ok;
 }
 SCSAPI_VOID scs_telemetry_shutdown() {
-    stopped=true;enabled=false;
+    stopped=true;enabled=false;freightEnabled=false;
     if(stopEvent)SetEvent(stopEvent);
     if(workerThread&&WaitForSingleObject(workerThread,1000)==WAIT_OBJECT_0) {
         CloseHandle(workerThread);workerThread=nullptr;CloseHandle(stopEvent);stopEvent=nullptr;

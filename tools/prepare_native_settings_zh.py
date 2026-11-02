@@ -16,11 +16,11 @@ from capstone.x86_const import X86_REG_RDX, X86_REG_RIP
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / 'build/native-settings-zh'
 CORE = None
-HOOKS = [('window', 0x13d110), ('page', 0x13de20), ('label', 0x13e130),
-         ('combo', 0x13e860), ('cstring', 0xf0310), ('string', 0xef4f0),
-         ('convert', 0xf0210), ('show', 0x13da10), ('freight-update', 0xfc300),
-         ('freight-destroy', 0xfc260),
-         ('freight-combo-item', 0x3304f0), ('freight-autocomplete-item', 0x331700)]
+HOOKS = [('window', 0x13d1d0), ('page', 0x13dee0), ('label', 0x13e1f0),
+         ('combo', 0x13e920), ('cstring', 0xf0370), ('string', 0xef550),
+         ('convert', 0xf0270), ('show', 0x13dad0), ('freight-update', 0xfc360),
+         ('freight-destroy', 0xfc2c0),
+         ('freight-combo-item', 0x330850), ('freight-autocomplete-item', 0x331a60)]
 
 
 def require(test, message):
@@ -77,10 +77,10 @@ def main():
                 i.operands[1].mem.base == X86_REG_RIP)
 
     evidence = []
-    for start, end in [(0x13a200, 0x13cb20), (0x150e80, 0x153a00), (0x13d110, 0x13d8a1)]:
+    for start, end in [(0x13a2c0, 0x13cbe0), (0x150f40, 0x153ac0), (0x13d1d0, 0x13d961)]:
         ins = instructions(start, end)
         for n, i in enumerate(ins):
-            if i.mnemonic != 'call' or i.op_str != hex(base+0xf0310):
+            if i.mnemonic != 'call' or i.op_str != hex(base+0xf0370):
                 continue
             lea = next((j for j in reversed(ins[max(0, n-8):n]) if rip_rdx(j)), None)
             if lea is None:
@@ -90,13 +90,13 @@ def main():
             if en in wanted:
                 evidence.append(dict(english=en, source_rva=rva, return_rva=i.address+i.size-base))
     # Four boolean descriptors share a helper that forwards a static char*.
-    for site in (0x13a6d3, 0x13b709, 0x13b74b, 0x13c9bb):
+    for site in (0x13a793, 0x13b7c9, 0x13b80b, 0x13ca7b):
         i = instructions(site, site+7)[0]
         require(rip_rdx(i), 'Boolean label evidence changed')
         rva = site+i.size+i.operands[1].mem.disp
         en = p.get_data(rva, 100).split(b'\0')[0].decode('ascii')
         require(en in wanted, 'Unknown boolean label')
-        evidence.append(dict(english=en, source_rva=rva, return_rva=0x151104))
+        evidence.append(dict(english=en, source_rva=rva, return_rva=0x1511c4))
     require(collections.Counter(x['english'] for x in evidence) == expected,
             'Native label/tooltip evidence is incomplete')
 
@@ -105,25 +105,25 @@ def main():
         checks.append(dict(name=name, rva=rva, bytes=p.get_data(rva, size).hex()))
     for name, rva in HOOKS:
         guard(name, rva, 32)
-    guard('native-wide-assign', 0x81fe0, 0x144)
-    guard('native-text-destroy', 0xef630, 0x1f)
-    guard('native-label-set', 0x336bc0, 32)
-    guard('native-text-font-set', 0x3374c0, 0x71)
-    guard('native-font-layout', 0x163b40, 0x5b)
-    guard('native-font-cache-layout', 0x126cc0, 0x2b3)
-    guard('native-font-measure', 0x127100, 0x116)
-    guard('freight-control-layout', 0xfb220, 0xff5)
-    guard('freight-combo-item-layout', 0x3304f0, 0x2bd)
-    guard('freight-autocomplete-item-layout', 0x331700, 0x3b0)
-    guard('native-name-getter', 0x15d5d0, 8)
-    guard('native-children-getter', 0x15eb50, 0x18)
-    guard('native-tooltip-getter', 0x15fd20, 8)
-    guard('window-title-setter', 0x32f2b0, 0x4e)
-    guard('page-title-call', 0x13de55, 5)
-    guard('combo-convert-call', 0x13e99b, 5)
-    guard('index-selection-read', 0x13eb90, 0x2b)
-    guard('index-selection-write', 0x13ebc0, 0x59)
-    guard('integer-combo-vtable', 0xdd8330, 0)  # ASLR-dependent pointers checked by target RVA at runtime.
+    guard('native-wide-assign', 0x82020, 0x144)
+    guard('native-text-destroy', 0xef690, 0x1f)
+    guard('native-label-set', 0x336f20, 32)
+    guard('native-text-font-set', 0x337820, 0x71)
+    guard('native-font-layout', 0x163c00, 0x5b)
+    guard('native-font-cache-layout', 0x126d80, 0x2b3)
+    guard('native-font-measure', 0x1271c0, 0x116)
+    guard('freight-control-layout', 0xfb280, 0xff5)
+    guard('freight-combo-item-layout', 0x330850, 0x2bd)
+    guard('freight-autocomplete-item-layout', 0x331a60, 0x3b0)
+    guard('native-name-getter', 0x15d690, 8)
+    guard('native-children-getter', 0x15ec10, 0x18)
+    guard('native-tooltip-getter', 0x15fde0, 8)
+    guard('window-title-setter', 0x32f610, 0x4e)
+    guard('page-title-call', 0x13df15, 5)
+    guard('combo-convert-call', 0x13ea5b, 5)
+    guard('index-selection-read', 0x13ec50, 0x2b)
+    guard('index-selection-write', 0x13ec80, 0x59)
+    guard('integer-combo-vtable', 0xdd8340, 0)  # ASLR-dependent pointers checked by target RVA at runtime.
     checks = [g for g in checks if g['bytes']]
     for site in evidence:
         guard('caption-call', site['return_rva']-5, 5)
@@ -136,10 +136,10 @@ def main():
     lines = ['// Generated after checking the Settings code and ABI; no client release whitelist.',
              '#pragma once', 'namespace settingszh {',
              f'inline constexpr unsigned kImageSize = 0x{p.OPTIONAL_HEADER.SizeOfImage:x};',
-             'inline constexpr unsigned kComboVtable = 0xdd8330;',
-             'inline constexpr unsigned kLabelVtable = 0xdf2450;',
-             'inline constexpr unsigned kTextVtable = 0xdf2ab8;',
-             'inline constexpr unsigned kFreightVtable = 0xdccab0;',
+             'inline constexpr unsigned kComboVtable = 0xdd8340;',
+             'inline constexpr unsigned kLabelVtable = 0xdf2438;',
+             'inline constexpr unsigned kTextVtable = 0xdf2aa0;',
+             'inline constexpr unsigned kFreightVtable = 0xdccac0;',
              'inline constexpr wchar_t kSettingsFont[] = L"TmpSettingsZH.ttf";',
              'inline constexpr wchar_t kSettingsBoldFont[] = L"TmpSettingsZH-Semibold.ttf";',
              'inline constexpr wchar_t kFreightFont[] = L"TmpFreightZH.ttf";',
@@ -198,17 +198,19 @@ def main():
                   option_groups=len(groups), option_occurrences=sum(len(r['options']) for _, r, _ in groups),
                   source_evidence=evidence, runtime_guards=checks, player_filters=filters,
                   limits='Static ABI review and offline tests do not establish in-game loading or rendering.')
+    from prepare_relocation import prepare as prepare_relocation
+    report['relocation'] = prepare_relocation(data, OUT, report)
     (OUT / 'native-profile.json').write_text(json.dumps(report, ensure_ascii=False, indent=2)+'\n', encoding='utf-8')
 
     # Isolated test fixture: exact reviewed assign instructions, with every external call
     # redirected by the test to its own allocator/copy/error stubs. No TMP DLL is loaded.
-    start, end = 0x81fe0, 0x82125
+    start, end = 0x82020, 0x82165
     code = p.get_data(start, end-start)
     calls = []
     for i in instructions(start, end):
         if i.mnemonic == 'call':
             target = int(i.op_str, 0)-base
-            require(target in (0x9bb3f0, 0x82680, 0x54720, 0x82590, 0x82620, 0x966c88), 'Unknown assign call')
+            require(target in (0x9bb760, 0x826c0, 0x54720, 0x825d0, 0x82660, 0x966ff8), 'Unknown assign call')
             calls.append((i.address-base-start, target))
     fixture = ['#pragma once', 'inline constexpr unsigned char kAssignCode[] = {'+
                ','.join(f'0x{x:02x}' for x in code)+'};',
@@ -218,7 +220,7 @@ def main():
     fixture += ['};']
     (OUT / 'native_assign_fixture.h').write_text('\n'.join(fixture)+'\n', encoding='utf-8')
     fixture = ['#pragma once']
-    for name, start, end in [('SetFont', 0x3374c0, 0x337531), ('Measure', 0x127100, 0x127216)]:
+    for name, start, end in [('SetFont', 0x337820, 0x337891), ('Measure', 0x1271c0, 0x1272d6)]:
         for i in instructions(start, end):
             require(not any(op.type == capstone.CS_OP_MEM and op.mem.base == X86_REG_RIP for op in i.operands),
                     'Unexpected external font fixture data')

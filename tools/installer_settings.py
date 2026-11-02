@@ -95,7 +95,7 @@ class SettingsStore:
         payload, compatibility = bundled(assets)
         core = plain(self.anchor.tmp_root / 'core_ets2mp.dll')
         core_before = digest(core)
-        settings_compatibility.check_core(core, compatibility)
+        settings_compatibility.check_core(core, compatibility, verifier=payload)
         expected = digest(payload)
         _, previous = self.current()
         if previous and previous['state'] != 'restored':
