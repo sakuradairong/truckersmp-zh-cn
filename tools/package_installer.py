@@ -66,14 +66,14 @@ def build(assets):
     licenses = work / 'runtime-licenses'
     collect_licenses(licenses)
     version_file = work / 'version-info.txt'
-    version_file.write_text("""VSVersionInfo(ffi=FixedFileInfo(filevers=(0,3,0,5), prodvers=(0,3,0,5),
+    version_file.write_text("""VSVersionInfo(ffi=FixedFileInfo(filevers=(0,3,0,11), prodvers=(0,3,0,11),
 mask=0x3f, flags=2, OS=0x40004, fileType=0x1, subtype=0x0, date=(0,0)), kids=[
 StringFileInfo([StringTable('040904b0', [
 StringStruct('FileDescription', 'TruckersMP Simplified Chinese installer'),
-StringStruct('FileVersion', '0.3.0-preview.5'),
+StringStruct('FileVersion', '0.3.0-preview.11'),
 StringStruct('ProductName', 'TruckersMP ZH-CN'),
 StringStruct('CompanyName', 'RainySY'),
-StringStruct('ProductVersion', '0.3.0-preview.5'),
+StringStruct('ProductVersion', '0.3.0-preview.11'),
 StringStruct('LegalCopyright', 'MIT; bundled fonts under SIL OFL 1.1')])]),
 VarFileInfo([VarStruct('Translation', [1033,1200])])])""", encoding='utf-8')
     executable_name = 'TruckersMP-ZH-CN-Setup-' + backend.VERSION

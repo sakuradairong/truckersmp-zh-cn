@@ -4,17 +4,26 @@
 
 An unofficial TruckersMP UI localization project for Windows x64 and Euro Truck Simulator 2, with Simplified Chinese interfaces, an offline graphical installer, and restore tools.
 
-Current source candidate: **0.3.0-preview.5**. Settings localization, dynamic freight text fixes, and TAB player filters require the experimental native module. In-game rendering, online compatibility, and performance still need validation.
+Created by [RainySY](https://github.com/sakuradairong). The installer and TAB profile card show this credit, and the installer links to the GitHub profile.
+
+Current source candidate: **0.3.0-preview.11**. Settings localization, dynamic freight text fixes, TAB player filters, and the personal profile require the experimental native module. In-game rendering, online compatibility, and performance still need validation.
+
+`preview.8` adds startup address resolution using reviewed TMP **0.7.9.3** code and ABI contracts. Pure address movement that satisfies these contracts can use the same DLL. Instruction, layout, call-relation, or dependency mismatches retain the original behaviour for affected features. The installer reports Settings, freight, and TAB/profile availability separately and preserves the original restore baseline.
+
+`preview.9` allows changed localization files to be updated directly. By default, the graphical installer saves copies of changed files before replacing them during installation or recovery. The original restore backups and compatibility checks remain in place.
+
+`preview.11` fixes Settings and freight being disabled after Windows rebases the loaded module: a partial pointer was incorrectly checked as fixed bytes. Rules now cover the complete pointer and validate its target. Native builds test the real client at three simulated load bases without executing client code.
 
 ## Features
 
 | Component | Features |
 | --- | --- |
 | TAB player panel | Chinese player list and context menu, compact layout, and All, Friends, Company, and Staff filters |
+| My profile | Automatic local-player nickname, TMP account ID, server ID, and official VTC; VTC lookup requires the public online API |
 | Bus dispatcher | Chinese window text, headings, buttons, and layout adjustments |
 | Freight | 17 translated static headings, buttons, and checkboxes; font fixes for dynamic city, company, cargo, trailer, and urgency text |
 | Settings (experimental) | General, Sound, Gameplay, Graphics, and Interface pages; 52 setting labels, 27 descriptions, nine groups of static options, tabs, and footer buttons |
-| Installation and recovery | Offline installation, upgrades, modification checks, interrupted-operation recovery, and preservation of the original restore point |
+| Installation and recovery | Offline installation, upgrades, replacement after saving changed files, interrupted-operation recovery, and preservation of the original restore point |
 
 ## Installation and updates
 
@@ -22,7 +31,7 @@ Download a published Windows x64 installer EXE from [GitHub Releases](https://gi
 
 1. Exit ETS2, ATS, and the TruckersMP launcher normally.
 2. Run the installer and confirm the TMP installation directory and ETS2 game directory. You can also select them manually.
-3. For all features, leave **同时安装 Settings 汉化、货运中文修复和玩家筛选页签（实验性）** selected: this installs Settings localization, freight text fixes, and player filters. Clearing it installs static localization resources only.
+3. For all features, leave **同时安装原生功能：Settings、货运中文、玩家筛选和个人资料（实验性）** selected: this installs Settings localization, freight text fixes, player filters, and the personal profile. Clearing it installs static localization resources only.
 4. Click **安装汉化** (Install localization), or **更新 / 检查汉化** (Update / Check localization) for an existing installation. Restart the game when installation completes.
 
 The native module is installed at `bin/win_x64/plugins/TmpSettingsZh.dll` inside the ETS2 directory and loads after restarting the game. The installer reports resource and native-module status separately and retains specific errors if installation is only partially successful.
@@ -37,7 +46,8 @@ Exit the game and launcher, run the installer again, and click **恢复安装前
 
 - Backups and recovery records are stored in `%LOCALAPPDATA%\TruckersMPZH`. Deleting or downloading the EXE again does not affect recovery. Keep this directory.
 - Upgrades preserve the original restore point, including any override resources present before the first installation.
-- Operations stop and preserve files if another program has modified a target or backup.
+- The graphical installer replaces changed targets by default after saving their current contents. The original restore point remains intact. Use Open backup directory to find copies and original-path records under `replaced-files`.
+- Operations stop if original backups are damaged, changed files cannot be saved, or targets change again during backup.
 - Run the installer again to recover from an interrupted installation. Existing installation records can still be used to restore files when current client resources are incompatible.
 
 ## TAB player filters
@@ -55,16 +65,26 @@ Changing categories returns the list to the top and clears the previous selectio
 
 Filtering applies to the complete UI candidate list after search, followed by native sorting and viewport clipping. The fixed 21dp row height is preserved, and the online and history source lists remain unchanged.
 
+## TAB personal profile
+
+The card reads the local player's nickname, TMP account ID, and current server ID from the live source list. It does not use the selected player, search results, or history, so changing filters cannot replace your identity with another player's. Missing data or an unavailable native module produces a waiting or update message.
+
+The official VTC name and ID come from `https://api.truckersmp.com/v2/player/<TMP-account-ID>`. Player-defined tags are not treated as VTC names. Requests send only the public TMP account ID, without uploading nicknames, Steam IDs, or other game data; personal data is not persisted to disk. The installer itself still works offline.
+
+Requests run on a background worker. Successful results are cached for five minutes while the panel is in use; failures retry after at least one minute and rate limits after at least two minutes, with at least five seconds between requests. Hiding the panel, going offline, or enabling the client's anonymized mode clears the display and stops further requests. Late results from old sessions are discarded. Failed lookups and confirmed absence of VTC membership have distinct messages. Unverified native code or field layouts disable the profile and player filters.
+
 ## Compatibility and validation
 
 Resource localization identifies targets by control IDs, original text, and resource structure. It does not depend on fixed character offsets, entry order, or total entry counts. If a required control is missing, duplicated, or unrecognizable, the installer stops before writing and explains the reason.
 
 The native module checks the code, call relationships, and control structures it actually uses. Compatibility checks do not whitelist TMP version numbers, whole-DLL hashes, or exact image sizes. Affected features stop when the required structures change. SHA-256 remains in use for downloads, fonts, backups, and file-change checks during an operation.
 
+The installer and in-game DLL share one read-only native checker. Resolution runs once at startup and keeps addresses in process memory, without per-frame scanning or online offset downloads. Contracts cover instruction patterns, reference relations, vtables, direct helper functions, library entry blocks, and data regions. These bounded ABI checks do not guarantee compatibility with every future version. Changed client resources still need checking and rebuilding.
+
 | Validation | Recorded result |
 | --- | --- |
-| Python / Lua automated tests | 79 passed, covering resources, fonts, installation and recovery, and TAB interactions |
-| Isolated native checks | 47,179 passed, including string ownership, lifecycle handling, and 17 hook trampolines |
+| Python / Lua automated tests | 99 passed, including five real-PE data tests; client code is never executed |
+| Isolated native checks | 47,243 passed plus 17 resolver checks, covering ownership, lifecycle, 17 hook trampolines, and nonuniform address movement |
 | Isolated installer validation | Existing candidate builds completed real EXE installation, repeat installation, upgrades, Unicode paths, and restore checks without modifying the real game installation |
 | In-game acceptance | Outstanding; offline results do not establish actual loading, rendering, online compatibility, or performance |
 
@@ -142,6 +162,8 @@ Resource artifacts are written to `build/resources/`, and native-module artifact
 
 Installation tools check running processes, reject links and reparse points, back up existing targets, and verify written hashes. Keep the installation records and backups in `build/` when using this manual workflow.
 
+Manual installation saves a recovery journal before replacing files. If installation is interrupted, run the recovery commands below with the original output directory before installing again. Interrupted recovery can be resumed by repeating the same command. Restoring an older native DLL uses its original installation record and DLL hash; it does not require newly added fonts or resources, or the original `package.json`.
+
 | Installation location | Declared files |
 | --- | --- |
 | `data/shared_mod/` | `ui.mp`, `client.mp`, `OpenSans.ttf`, `OfflineFreightZH.ttf` |
@@ -157,7 +179,7 @@ To restore, exit the game and launcher and reverse the installation order:
 & $Python -B tools/resources.py restore --tmp-root $TmpRoot
 ```
 
-Recovery stops if a target or backup has been modified by another program instead of overwriting it. After a TMP update, run the installer again to check and update localization. Native features need adaptation if the relevant client structures change.
+The development commands above still stop recovery when targets or backups change. The graphical installer saves changed targets before replacing them by default. After a TMP update, run the installer again to check and update localization. Native features need adaptation if the relevant client structures change.
 
 ## Project layout
 
@@ -178,3 +200,7 @@ Git contains only the declared localization source files. Full client resources,
 Original code and translation data are licensed under [MIT](LICENSE). See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the rights and licensing boundaries of third-party components, SDKs, client assets, and fonts.
 
 The installer distributes this project's compiled native localization DLL and open-source derived fonts. It does not include full client resources, official DLLs, or executable machine-code fixtures. Derived fonts remain under their respective SIL OFL 1.1 licenses.
+
+### 0.3.0-preview.11: TMP 0.7.9.4
+
+Adds a separately reviewed dependency profile for 0.7.9.4 while retaining the 0.7.9.3 canonical adapter. All 100 consumer instruction patterns are unchanged. Literal contracts exclude adjacent pooled strings. Profiles are validated independently; addresses from different profiles are never combined. Offline PE and ASLR checks do not establish in-game rendering or stability.

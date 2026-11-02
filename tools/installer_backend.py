@@ -10,7 +10,7 @@ from installer_settings import SettingsStore, bundled as settings_bundle, game_d
 import settings_compatibility
 import resources
 
-VERSION = '0.3.0-preview.5'
+VERSION = '0.3.0-preview.11'
 AUTHOR_NAME = 'RainySY'
 AUTHOR_URL = 'https://github.com/sakuradairong'
 PROJECT_URL = AUTHOR_URL + '/truckersmp-zh-cn'
