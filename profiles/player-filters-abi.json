@@ -138,6 +138,18 @@
       "rva": 7512000,
       "size": 256,
       "sha256": "03a86d13044ebfe6812da04247c595c227f9259ee4fe4c9abd2f53dcaf71f668"
+    },
+    {
+      "name": "player-profile-row-bindings",
+      "rva": 1885760,
+      "size": 4554,
+      "sha256": "451648245375a34d710941c1a496c058a11f274369c6bed3f5a2e20f9a9d9806"
+    },
+    {
+      "name": "player-lua-push-string",
+      "rva": 7512912,
+      "size": 141,
+      "sha256": "c3197f1c721e3d1819d27ae53809f30f656c9711443f7c6f47851c1c3b96f557"
     }
   ],
   "field_offsets": {
@@ -145,7 +157,14 @@
     "candidates": 104,
     "staff": 28,
     "friend": 30,
-    "company_buddy": 31
+    "company_buddy": 31,
+    "live_players": 56,
+    "server_id": 8,
+    "account": 12,
+    "local": 24,
+    "demo": 25,
+    "left": 26,
+    "name": 64
   },
   "note": "Guards for the player UI projection, Lua bindings and native ownership operations only. No release or whole-image whitelist."
 }

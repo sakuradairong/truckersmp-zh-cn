@@ -169,7 +169,7 @@ void Run() {
     luaGetField=GetField;luaPushClosure=Closure;luaSetField=Field;
     HookRegister();Check(bindings.empty()&&registerCalls==1,"inactive registration preserves original table only");
     active=true;HookRegister();
-    Check(top==3&&bindings==std::vector<std::string>{"FiltersReady","GetFilter","SetFilter"},"Lua extension restores stack and original registration");
+    Check(top==3&&bindings==std::vector<std::string>{"FiltersReady","GetFilter","SetFilter","GetLocalProfile","ClearLocalProfile"},"Lua extension restores stack and original registration");
     Check(registerCalls==2,"original Lua registration always runs");
     {
         List list(8);current=&list;state={};boundLua=nullptr;notifiedOwner=nullptr;

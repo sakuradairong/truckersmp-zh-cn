@@ -23,6 +23,7 @@ def phrases():
     result.extend(read_json(ROOT / 'profiles/freight-zh-cn.json').values())
     result.extend(edit['text'] for entry in read_json(ROOT / 'profiles/resource-edits.json')['ui_entries']
                   for edit in entry['edits'])
+    result.append((ROOT / 'ui/player_filters.lua').read_text(encoding='utf-8'))
     return result
 
 

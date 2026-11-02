@@ -11,6 +11,11 @@ their trademarks, or user-supplied fonts and SDKs. This is an unofficial project
   [vendor/minhook/LICENSE.txt](vendor/minhook/LICENSE.txt) and source headers.
   The Settings localization DLL bundles this library; its license is also
   available in the installer's license viewer.
+- **PicoJSON v1.3.0**, commit `25fc213cca61ea22b3c2e4db8def9927562ba5f7`,
+  parses public TruckersMP VTC responses. Source: <https://github.com/kazuho/picojson>.
+  The BSD 2-Clause license is preserved in [vendor/picojson/LICENSE.txt](vendor/picojson/LICENSE.txt)
+  and the source header, and is included in the installer's runtime licenses.
+  Upstream header SHA-256: `5ddf7276d04926da7be243e7af49258e78cc27278ee9097ba45b942c7a6b5f9d`.
 - **SCS Telemetry SDK 1.16** is an external build prerequisite and is not
   redistributed here. Official archive:
   <https://download.eurotrucksimulator2.com/scs_sdk_1_16.zip>.

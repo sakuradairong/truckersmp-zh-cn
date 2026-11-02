@@ -3,6 +3,7 @@
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <windows.h>
+#include <winhttp.h>
 #include <intrin.h>
 #include <atomic>
 #include <cstdint>
@@ -11,6 +12,7 @@
 #include <cwchar>
 #include <cmath>
 #include <initializer_list>
+#include "../vendor/picojson/picojson.h"
 #include "MinHook.h"
 #include "scssdk_telemetry.h"
 #include "settings_profile.h"
@@ -195,9 +197,9 @@ struct TemporaryText {
     explicit TemporaryText(const char* en){originalCString(data,en);}
     ~TemporaryText(){nativeDestroyText(data);}
 };
-void* PointerAt(void* object,std::size_t offset) {
+void* PointerAt(const void* object,std::size_t offset) {
     if(!Readable(object,offset+sizeof(void*)))return nullptr;
-    void* result=nullptr;std::memcpy(&result,static_cast<unsigned char*>(object)+offset,sizeof result);return result;
+    void* result=nullptr;std::memcpy(&result,static_cast<const unsigned char*>(object)+offset,sizeof result);return result;
 }
 void* DisplayText(void* control) {
     if(!Readable(control,0x158))return nullptr;
@@ -464,6 +466,7 @@ void* HookConvert(void* object,const void* source) {
     return result;
 }
 
+#include "player_profile.h"
 #include "player_filters.h"
 
 bool VerifyImage() {
@@ -539,7 +542,11 @@ void Attach(HMODULE module) {
 DWORD WINAPI Worker(void*) {
     const auto start=GetTickCount64();
     while(WaitForSingleObject(stopEvent,100)==WAIT_TIMEOUT) {
-        if(HMODULE module=GetModuleHandleW(L"core_ets2mp.dll")){Attach(module);return 0;}
+        if(HMODULE module=GetModuleHandleW(L"core_ets2mp.dll")) {
+            Attach(module);
+            while(WaitForSingleObject(stopEvent,1000)==WAIT_TIMEOUT)playerprofile::Poll();
+            return 0;
+        }
         if(GetTickCount64()-start>120000){Log("inactive: no TMP core; no hooks installed");return 0;}
     }
     return 0;

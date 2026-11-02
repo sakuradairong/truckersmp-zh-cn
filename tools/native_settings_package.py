@@ -19,6 +19,8 @@ ROOT = Path(__file__).resolve().parents[1]
 RELEASE = ROOT / 'build/native-settings-zh'
 DLL = 'TmpSettingsZh.dll'
 NATIVE_SOURCES = ('src/settings_zh.cpp','src/settings_zh.def','src/player_filter_logic.h','src/player_filters.h',
+                  'src/player_profile.h','vendor/picojson/picojson.h','vendor/picojson/LICENSE.txt',
+                  'tests/native_player_profile_test.h',
                   'profiles/player-filters-abi.json','tools/prepare_player_filters.py','tests/native_player_filters_test.h',
                   'profiles/settings-zh-cn.json',
                   'profiles/settings-abi.json','tools/settings_compatibility.py',

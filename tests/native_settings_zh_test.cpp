@@ -314,6 +314,7 @@ void TestFreightFonts() {
 } // namespace
 
 #include "native_player_filters_test.h"
+#include "native_player_profile_test.h"
 
 int Run(int argc,char** argv) {
     nativeAssign=MakeAssignFixture();nativeSetFont=FontFixture<SetFont>(kSetFontCode);enabled=true;
@@ -370,6 +371,7 @@ int Run(int argc,char** argv) {
     TestAlreadyCreatedWindow();
     TestFreightFonts();
     playerfilterfixture::Run();
+    playerprofilefixture::Run();
     Text unknown("My Player 公开");Check(!TranslateText(&unknown,kRows[0].label,0),"player-owned text unchanged");
     Text disabled(kRows[0].label.en);enabled=false;Check(!TranslateText(&disabled,kRows[0].label,0),"disabled adapter forwards unchanged");
     enabled=true;

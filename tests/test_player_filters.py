@@ -18,6 +18,7 @@ function element(id)
         self.attributes[key] = value
         if key == "style" then self.local_display = value:match("display:%s*([^;]+)") end
     end
+    function e:HasAttribute(key) return self.attributes[key] ~= nil end
     -- RmlUI DataViewIf checks local display presence, not computed visibility.
     function e:apply_online(online)
         local visible = self.local_display == nil
@@ -44,12 +45,16 @@ end
 document = element("document")
 elements = {}
 for _, id in ipairs({"zh_player_filters", "players", "toggle_history", "search",
-                     "zh_filter_all", "zh_filter_friends", "zh_filter_company", "zh_filter_staff"}) do
+                     "zh_filter_all", "zh_filter_friends", "zh_filter_company", "zh_filter_staff",
+                     "zh_profile_section", "zh_local_profile", "zh_profile_name", "zh_profile_account",
+                     "zh_profile_server", "zh_profile_vtc"}) do
     elements[id] = element(id)
 end
 for key, value in pairs(initial_filter_attributes) do
     elements.zh_player_filters:SetAttribute(key, value)
 end
+elements.zh_profile_section.attributes["data-online"] = ""
+elements.zh_local_profile.attributes["data-public"] = ""
 function document:GetElementById(id) return elements[id] end
 function document:QuerySelector(query) return elements.search end
 ready = 1
@@ -217,8 +222,90 @@ class PlayerFilterLua(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'native callbacks changed'):
             resources.apply_edits(result, entry)
 
+    def test_current_player_profile_keeps_ids_distinct_and_escapes_external_names(self):
+        lua = self.runtime('''function PlayerPanel.GetLocalProfile()
+            return 42, 123, 'A <script>& "nickname"', 1, '<b>车队</b>', 9
+        end''')
+        self.assertEqual(lua.eval('elements.zh_profile_account.inner_rml'), '42')
+        self.assertEqual(lua.eval('elements.zh_profile_server.inner_rml'), '123')
+        self.assertEqual(lua.eval('elements.zh_profile_name.inner_rml'), 'A &lt;script&gt;&amp; &quot;nickname&quot;')
+        self.assertEqual(lua.eval('elements.zh_profile_vtc.inner_rml'), '&lt;b&gt;车队&lt;/b&gt; · #9')
+        self.assertEqual(lua.eval('elements.players.scroll_top'), 217)
+        self.assertEqual(lua.eval('#mode_calls'), 0)
+
+    def test_profile_offline_private_and_hidden_states_clear_identity_and_stop_queries(self):
+        lua = self.runtime('''queries=0; clears=0
+            function PlayerPanel.GetLocalProfile() queries=queries+1; return 42, 123, 'My name', 2, '', 0 end
+            function PlayerPanel.ClearLocalProfile() clears=clears+1 end''')
+        for element, attr in (('zh_profile_section', 'data-offline'), ('zh_local_profile', 'data-private')):
+            lua.execute(f'elements.{element}.attributes["{attr}"]=""')
+            queries = lua.eval('queries')
+            lua.execute('PlayerPanel.ZHRefreshFilterTabs()')
+            self.assertEqual(lua.eval('queries'), queries)
+            self.assertEqual(lua.eval('elements.zh_profile_account.inner_rml'), '—')
+            lua.execute(f'elements.{element}.attributes["{attr}"]=nil; PlayerPanel.ZHRefreshFilterTabs()')
+            self.assertEqual(lua.eval('elements.zh_profile_account.inner_rml'), '42')
+        lua.execute('document:fire("hide")')
+        queries = lua.eval('queries')
+        lua.execute('PlayerPanel.ZHRefreshFilterTabs()')
+        self.assertEqual(lua.eval('queries'), queries)
+        lua.execute('document:fire("show")')
+        self.assertEqual(lua.eval('queries'), queries + 1)
+
+    def test_profile_errors_never_claim_no_vtc_and_recovery_updates(self):
+        lua = self.runtime('''vtc_status=0
+            function PlayerPanel.GetLocalProfile() return 42, 123, 'My name', vtc_status, '', 0 end''')
+        for status, expected in ((0,'正在查询'), (3,'查询失败'), (4,'频率受限'), (2,'未加入 VTC')):
+            lua.execute(f'vtc_status={status}; PlayerPanel.ZHRefreshFilterTabs()')
+            self.assertIn(expected, lua.eval('elements.zh_profile_vtc.inner_rml'))
+        lua.execute('function PlayerPanel.GetLocalProfile() return 0 end; PlayerPanel.ZHRefreshFilterTabs()')
+        self.assertEqual(lua.eval('elements.zh_profile_account.inner_rml'), '—')
+        self.assertIn('等待当前玩家', lua.eval('elements.zh_profile_name.inner_rml'))
+
+    def test_profile_waits_for_explicit_online_and_public_model_bindings(self):
+        lua = self.runtime('''queries=0
+            elements.zh_profile_section.attributes["data-online"]=nil
+            elements.zh_local_profile.attributes["data-public"]=nil
+            function PlayerPanel.GetLocalProfile() queries=queries+1; return 42, 123, 'My name', 2, '', 0 end''')
+        self.assertEqual(lua.eval('queries'), 0)
+        lua.execute('elements.zh_profile_section.attributes["data-online"]=""; PlayerPanel.ZHRefreshFilterTabs()')
+        self.assertEqual(lua.eval('queries'), 0)
+        lua.execute('elements.zh_local_profile.attributes["data-public"]=""; PlayerPanel.ZHRefreshFilterTabs()')
+        self.assertEqual(lua.eval('queries'), 1)
+
+    def test_server_change_and_missing_native_clear_old_personal_data(self):
+        lua = self.runtime('function PlayerPanel.GetLocalProfile() return 42, 123, "My name", 2, "", 0 end')
+        lua.execute('document:fire("player_panel__server_info")')
+        self.assertEqual(lua.eval('elements.zh_profile_account.inner_rml'), '—')
+        lua.execute('PlayerPanel.GetLocalProfile=nil; PlayerPanel.ZHRefreshFilterTabs()')
+        self.assertIn('原生模块', lua.eval('elements.zh_profile_name.inner_rml'))
+        self.assertEqual(lua.eval('elements.zh_profile_vtc.inner_rml'), '—')
+
+    def test_profile_resource_has_explicit_online_and_anonymized_bindings(self):
+        entries = json.loads((ROOT / 'profiles/resource-edits.json').read_text(encoding='utf-8'))['ui_entries']
+        panel = next(row for row in entries if row['name'] == 'player_panel.rml')
+        text = next(edit['text'] for edit in panel['edits'] if 'id="zh_profile_section"' in edit.get('text', ''))
+        root = ElementTree.fromstring(text)
+        self.assertEqual(root.attrib['data-attrif-data-offline'], '!online')
+        self.assertEqual(root.attrib['data-attrif-data-online'], 'online')
+        private = next(item for item in root.iter() if item.attrib.get('id') == 'zh_local_profile')
+        self.assertEqual(private.attrib['data-attrif-data-private'], 'anonymized')
+        self.assertEqual(private.attrib['data-attrif-data-public'], '!anonymized')
+        self.assertIn('RainySY', text)
+
 
 class PlayerFilterResourceScope(unittest.TestCase):
+    def test_new_profile_styles_can_be_added_to_original_client_stylesheet(self):
+        entries = json.loads((ROOT / 'profiles/resource-edits.json').read_text(encoding='utf-8'))['ui_entries']
+        css = next(row for row in entries if row['name'] == 'player_panel.rcss')
+        styles = [row for row in css['styles'] if row['selector'].startswith(('#zh_profile', '.zh_profile'))]
+        self.assertTrue(styles)
+        raw = b'body { color: white; }'
+        patched = resources.apply_edits(raw, dict(name='player_panel.rcss', edits=[], styles=styles))
+        self.assertTrue(patched.startswith(raw))
+        for row in styles:
+            self.assertIn(row['selector'].encode(), patched)
+
     def test_no_row_hiding_or_native_identifier_changes(self):
         entries = json.loads((ROOT / 'profiles/resource-edits.json').read_text(encoding='utf-8'))['ui_entries']
         panel = next(row for row in entries if row['name'] == 'player_panel.rml')

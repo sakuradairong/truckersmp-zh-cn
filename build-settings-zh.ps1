@@ -27,9 +27,9 @@ if not "%errorlevel%"=="0" exit /b %errorlevel%
 cd /d "__ROOT__\build\native-settings-zh"
 cl /nologo /O2 /MT /W3 /c /DWIN32 /D_WIN64 /I"..\..\vendor\minhook\include" /I"..\..\vendor\minhook\src" "..\..\vendor\minhook\src\buffer.c" "..\..\vendor\minhook\src\hook.c" "..\..\vendor\minhook\src\trampoline.c" "..\..\vendor\minhook\src\hde\hde64.c"
 if not "%errorlevel%"=="0" exit /b %errorlevel%
-cl /nologo /std:c++17 /utf-8 /O2 /MT /EHsc /W4 /LD /I"." /I"..\..\vendor\minhook\include" /I"__SCS__" "..\..\src\settings_zh.cpp" buffer.obj hook.obj trampoline.obj hde64.obj /link bcrypt.lib /DEF:"..\..\src\settings_zh.def" /OUT:TmpSettingsZh.dll /PDB:TmpSettingsZh.pdb /DYNAMICBASE /NXCOMPAT
+cl /nologo /std:c++17 /utf-8 /O2 /MT /EHsc /W4 /LD /I"." /I"..\..\vendor\minhook\include" /I"__SCS__" "..\..\src\settings_zh.cpp" buffer.obj hook.obj trampoline.obj hde64.obj /link bcrypt.lib winhttp.lib /DEF:"..\..\src\settings_zh.def" /OUT:TmpSettingsZh.dll /PDB:TmpSettingsZh.pdb /DYNAMICBASE /NXCOMPAT
 if not "%errorlevel%"=="0" exit /b %errorlevel%
-cl /nologo /std:c++17 /utf-8 /O2 /MT /EHsc /W4 /I"." /I"..\..\vendor\minhook\include" /I"__SCS__" "..\..\tests\native_settings_zh_test.cpp" buffer.obj hook.obj trampoline.obj hde64.obj /link bcrypt.lib /OUT:native-settings-zh-test.exe
+cl /nologo /std:c++17 /utf-8 /O2 /MT /EHsc /W4 /I"." /I"..\..\vendor\minhook\include" /I"__SCS__" "..\..\tests\native_settings_zh_test.cpp" buffer.obj hook.obj trampoline.obj hde64.obj /link bcrypt.lib winhttp.lib /OUT:native-settings-zh-test.exe
 if not "%errorlevel%"=="0" exit /b %errorlevel%
 native-settings-zh-test.exe TmpSettingsZh.dll native-checks.json
 exit /b %errorlevel%

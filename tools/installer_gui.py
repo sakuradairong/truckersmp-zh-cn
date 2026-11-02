@@ -8,6 +8,7 @@ from pathlib import Path
 import queue
 import sys
 import tkinter as tk
+import webbrowser
 from tkinter import filedialog, messagebox, ttk
 
 from common import ROOT, atomic_json, plain
@@ -46,14 +47,15 @@ class InstallerApp:
         frame = ttk.Frame(root, padding=28)
         frame.pack(fill='both', expand=True)
         ttk.Label(frame, text='TruckersMP 简体中文', style='Title.TLabel').pack(anchor='w')
-        ttk.Label(frame, text='离线安装 · 自带中文字体 · 随时恢复安装前状态', style='Sub.TLabel').pack(anchor='w', pady=(5, 17))
+        ttk.Label(frame, text=backend.AUTHOR_NAME + ' 制作 · 离线安装 · 自带中文字体 · 随时恢复安装前状态',
+                  style='Sub.TLabel').pack(anchor='w', pady=(5, 17))
         card = ttk.Frame(frame, padding=(20, 16), style='Card.TFrame')
         card.pack(fill='x')
         ttk.Label(card, text='本次安装内容', style='CardTitle.TLabel').pack(anchor='w')
         ttk.Label(card, text='Tab 玩家面板、列表与右键菜单\n公交调度窗口、货运窗口的静态标题和按钮',
                   style='Card.TLabel', justify='left').pack(anchor='w', pady=(9, 7))
-        ttk.Label(card, text='中文字体已包含；无需安装 Python 或自行寻找字体。', style='Card.TLabel').pack(anchor='w')
-        self.settings_check = ttk.Checkbutton(card, text='同时安装 Settings 汉化、货运中文修复和玩家筛选页签（实验性）',
+        ttk.Label(card, text='中文字体已包含；个人资料中的 VTC 车队使用公开 API 联网查询。', style='Card.TLabel').pack(anchor='w')
+        self.settings_check = ttk.Checkbutton(card, text='同时安装原生功能：Settings、货运中文、玩家筛选和个人资料（实验性）',
             variable=self.include_settings, command=self.check_path)
         self.settings_check.pack(anchor='w', pady=(8, 0))
         ttk.Label(frame, text='TMP 安装目录', font=('Microsoft YaHei UI', 10, 'bold')).pack(anchor='w', pady=(19, 6))
@@ -95,9 +97,12 @@ class InstallerApp:
                   style='Sub.TLabel').pack(anchor='w')
         bottom = ttk.Frame(footer)
         bottom.pack(fill='x', pady=(5, 0))
-        ttk.Label(bottom, text='ETS2 / Windows x64 · 按实际资源与 Settings 结构检查  ·  ' + backend.VERSION,
+        ttk.Label(bottom, text='ETS2 / Windows x64 · ' + backend.VERSION,
                   style='Sub.TLabel').pack(side='left')
         ttk.Button(bottom, text='字体与许可', command=self.licenses).pack(side='right')
+        self.author_button = ttk.Button(bottom, text=backend.AUTHOR_NAME + ' · GitHub',
+                                        command=lambda: webbrowser.open(backend.AUTHOR_URL))
+        self.author_button.pack(side='right', padx=(0, 8))
         root.protocol('WM_DELETE_WINDOW', self.close)
         root.after(100, self.drain)
         if scan:
@@ -229,8 +234,8 @@ class InstallerApp:
         path = self.path.get().strip()
         game, selected = self.game_path.get().strip(), self.include_settings.get()
         self.status.set('正在准备安装…')
-        message = ('汉化安装完成（含 Settings、货运中文修复和玩家筛选页签）。请重启 TMP 后检查。' if selected else
-                   '静态资源汉化已安装 / 检查完成；货运中文修复和玩家筛选需勾选原生模块。')
+        message = ('汉化安装完成（含 Settings、货运中文、玩家筛选和个人资料）。请重启 TMP 后检查。' if selected else
+                   '静态资源汉化已安装 / 检查完成；货运中文、玩家筛选和个人资料需勾选原生模块。')
         self.run(lambda: backend.install(path, self.assets, self.state_root, self.progress_message,
                                          game_root=game, include_settings=selected),
                  lambda result: self.finished(path, message), refresh_on_error=True)

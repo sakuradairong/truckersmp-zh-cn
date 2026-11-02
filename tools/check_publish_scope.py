@@ -27,6 +27,8 @@ FILES = {
     'profiles/freight-characters.json',
     'profiles/player-filters-abi.json', 'ui/player_filters.lua',
     'src/player_filter_logic.h', 'src/player_filters.h', 'tools/prepare_player_filters.py',
+    'src/player_profile.h', 'tests/native_player_profile_test.h',
+    'vendor/picojson/picojson.h', 'vendor/picojson/LICENSE.txt',
     'tests/native_player_filters_test.h', 'tests/test_player_filters.py',
     'tools/installer_store.py', 'tools/installer_backend.py', 'tools/installer_gui.py',
     'tools/installer_selftest.py', 'tools/package_installer.py',

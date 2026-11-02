@@ -12,6 +12,7 @@ using LuaPushClosure=void(*)(void*,LuaCall,int);
 using LuaSetField=void(*)(void*,int,const char*);
 using LuaString=const char*(*)(void*,int,std::size_t*);
 using LuaInteger=void(*)(void*,std::int64_t);
+using LuaPushString=void(*)(void*,const char*);
 using LuaProtectedCall=int(*)(void*,int,int,int);
 using MoveString=void*(*)(void*,void*);
 using EraseRows=void*(*)(void*,void*,void*,void*);
@@ -33,6 +34,7 @@ LuaPushClosure luaPushClosure=nullptr;
 LuaSetField luaSetField=nullptr;
 LuaString luaString=nullptr;
 LuaInteger luaInteger=nullptr;
+LuaPushString luaPushString=nullptr;
 MoveString moveString=nullptr;
 EraseRows eraseRows=nullptr;
 Refresh refresh=nullptr;
@@ -52,11 +54,12 @@ struct State {
 State state;
 void* boundLua=nullptr;
 void* notifiedOwner=nullptr;
+ULONGLONG lastNotification=0;
 thread_local bool notifying=false;
 void ForgetDocument();
 bool Ready(){return active.load()&&enabled.load()&&!stopped.load();}
 void Adopt(void* panel){if(state.owner!=panel){state={};state.owner=panel;}}
-void Disable(){active=false;state={};Log("inactive: player filters layout guard; original player list retained");}
+void Disable(){active=false;state={};playerprofile::Snapshot(0,GetTickCount64());Log("inactive: player filters layout guard; original player list retained");}
 
 bool Range(void* model,unsigned char*& begin,std::size_t& count) {
     if(!Readable(model,0x88))return false;
@@ -94,7 +97,7 @@ void HookRebuild(void* model) {
     if(Ready()&&!Apply(model))Disable();
 }
 void HookRelease(void* panel) {
-    if(state.owner==panel){ForgetDocument();state={};notifiedOwner=nullptr;}
+    if(state.owner==panel){ForgetDocument();state={};notifiedOwner=nullptr;playerprofile::Snapshot(0,GetTickCount64());}
     originalRelease(panel);
 }
 void HookCount(void* closure,void* value) {
@@ -117,6 +120,18 @@ void Release(SharedPanel& panel) {
 }
 int LuaReady(void* lua){luaInteger(lua,Ready()?1:0);return 1;}
 int LuaMode(void* lua){luaInteger(lua,Ready()?static_cast<unsigned>(state.mode):0);return 1;}
+int LuaClearProfile(void*){playerprofile::Snapshot(0,GetTickCount64());return 0;}
+int LuaLocalProfile(void* lua) {
+    playerprofile::Local local;SharedPanel panel;
+    if(Ready())getPanel(&panel);
+    const bool found=panel.object&&Readable(panel.object,0x1a0)&&
+        playerprofile::ReadLocal(static_cast<unsigned char*>(panel.object)+0x118,local);
+    Release(panel); // Do not retain native ownership across Lua stack allocation.
+    const auto vtc=playerprofile::Snapshot(found?local.account:0,GetTickCount64());
+    if(!found){luaInteger(lua,0);return 1;}
+    luaInteger(lua,local.account);luaInteger(lua,local.server);luaPushString(lua,local.name);
+    luaInteger(lua,vtc.status);luaPushString(lua,vtc.name);luaInteger(lua,vtc.vtc);return 6;
+}
 int LuaSetFilter(void* lua) {
     // Validate the Lua argument before acquiring a native shared reference.
     const char* text=luaString(lua,1,nullptr);Mode mode;
@@ -147,7 +162,8 @@ void BindLua(void* lua) {
     const int table=luaGetTop(lua);
     struct Binding {const char* name;LuaCall call;};
     for(const auto& binding:{Binding{"FiltersReady",LuaReady},Binding{"GetFilter",LuaMode},
-                             Binding{"SetFilter",LuaSetFilter}}) {
+                             Binding{"SetFilter",LuaSetFilter},Binding{"GetLocalProfile",LuaLocalProfile},
+                             Binding{"ClearLocalProfile",LuaClearProfile}}) {
         luaPushClosure(lua,binding.call,0);
         luaSetField(lua,table,binding.name);
     }
@@ -173,7 +189,8 @@ bool HookRefresh(void* model) {
     void* lua=Ready()?luaState():nullptr;
     if(lua&&lua!=boundLua)BindLua(lua);
     const bool changed=originalRefresh(model);
-    if(lua&&Ready()&&state.valid&&notifiedOwner!=state.owner&&!notifying) {
+    const auto now=GetTickCount64();
+    if(lua&&Ready()&&state.valid&&(notifiedOwner!=state.owner||now-lastNotification>=1000)&&!notifying) {
         Scope<bool> scope(notifying,true);
         const int top=luaGetTop(lua);
         luaGetField(lua,-10002,"PlayerPanel");
@@ -182,7 +199,7 @@ bool HookRefresh(void* model) {
         // script errors; restore the exact stack regardless of its result.
         const int result=luaProtectedCall(lua,0,0,0);
         luaSetTop(lua,top);
-        if(result==0)notifiedOwner=state.owner;
+        if(result==0){notifiedOwner=state.owner;lastNotification=now;}
     }
     return changed;
 }
@@ -208,6 +225,7 @@ void Attach() {
     luaSetField=reinterpret_cast<LuaSetField>(core+0x72a770);
     luaString=reinterpret_cast<LuaString>(core+0x728c90);
     luaInteger=reinterpret_cast<LuaInteger>(core+0x72a1f0);
+    luaPushString=reinterpret_cast<LuaPushString>(core+0x72a350);
     luaProtectedCall=reinterpret_cast<LuaProtectedCall>(core+0x729fc0);
     moveString=reinterpret_cast<MoveString>(core+0x81c50);
     eraseRows=reinterpret_cast<EraseRows>(core+0x1d3010);

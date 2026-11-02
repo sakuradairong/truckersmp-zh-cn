@@ -132,6 +132,15 @@
             }
           },
           "text": "\n<div id=\"zh_player_filters\" data-if=\"online\">\n    <button id=\"zh_filter_all\" class=\"txt_button zh_filter_tab\" title=\"显示所有符合搜索的玩家\">全部</button>\n    <button id=\"zh_filter_friends\" class=\"txt_button zh_filter_tab\" title=\"按原生好友标记筛选\">好友</button>\n    <button id=\"zh_filter_company\" class=\"txt_button zh_filter_tab\" title=\"按原生同车队标记筛选\">车队</button>\n    <button id=\"zh_filter_staff\" class=\"txt_button zh_filter_tab\" title=\"TruckersMP 工作人员\">团队成员</button>\n    <span class=\"zh_filter_hint\">人数：匹配 / 搜索结果</span>\n</div>\n"
+        },
+        {
+          "mode": "after",
+          "selector": {
+            "attrs": {
+              "id": "players_query"
+            }
+          },
+          "text": "\n<div id=\"zh_profile_section\" data-model=\"player_panel\" data-attrif-data-offline=\"!online\" data-attrif-data-online=\"online\">\n    <div class=\"zh_profile_heading\"><span>我的资料</span><span class=\"zh_profile_credit\">RainySY 制作</span></div>\n    <div data-if=\"!online\" class=\"zh_profile_muted\">连接服务器后自动显示个人资料</div>\n    <div data-if=\"online\">\n        <div id=\"zh_local_profile\" data-model=\"player_panel_players\" data-attrif-data-private=\"anonymized\" data-attrif-data-public=\"!anonymized\">\n            <div data-if=\"anonymized\" class=\"zh_profile_muted\">隐私模式已隐藏个人资料</div>\n            <div data-if=\"!anonymized\">\n                <div class=\"zh_profile_line\"><span class=\"zh_profile_muted\">昵称 </span><span id=\"zh_profile_name\">等待当前玩家数据</span></div>\n                <div class=\"zh_profile_line zh_profile_muted\">TMP ID <span id=\"zh_profile_account\">—</span> · 服务器 ID <span id=\"zh_profile_server\">—</span></div>\n                <div class=\"zh_profile_line\"><span class=\"zh_profile_muted\">VTC 车队 </span><span id=\"zh_profile_vtc\">等待查询</span></div>\n            </div>\n        </div>\n    </div>\n</div>\n"
         }
       ]
     },
@@ -309,11 +318,11 @@
           "required": true,
           "properties": {
             "width": "620dp",
-            "height": "360dp",
+            "height": "460dp",
             "min-width": "480dp",
-            "min-height": "250dp",
+            "min-height": "350dp",
             "max-width": "900dp",
-            "max-height": "420dp"
+            "max-height": "620dp"
           }
         },
         {
@@ -557,6 +566,54 @@
             "color": "#AAB3BE",
             "margin-left": "4dp"
           }
+        },
+        {
+          "selector": "#zh_profile_section",
+          "properties": {
+            "margin-top": "8dp",
+            "padding": "10dp 12dp",
+            "background-color": "#18282CCC",
+            "border": "1dp #36494F",
+            "border-radius": "5dp",
+            "font-size": "0.85em"
+          },
+          "required": false
+        },
+        {
+          "selector": ".zh_profile_heading",
+          "properties": {
+            "display": "flex",
+            "justify-content": "space-between",
+            "font-weight": "bold",
+            "margin-bottom": "5dp",
+            "color": "#E6ECEF"
+          },
+          "required": false
+        },
+        {
+          "selector": ".zh_profile_credit",
+          "properties": {
+            "font-weight": "normal",
+            "font-size": "0.9em",
+            "color": "#8CA4AB"
+          },
+          "required": false
+        },
+        {
+          "selector": ".zh_profile_line",
+          "properties": {
+            "margin-top": "3dp",
+            "overflow": "hidden",
+            "white-space": "nowrap"
+          },
+          "required": false
+        },
+        {
+          "selector": ".zh_profile_muted",
+          "properties": {
+            "color": "#A6B6BF"
+          },
+          "required": false
         }
       ]
     },

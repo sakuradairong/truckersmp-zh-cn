@@ -7,6 +7,51 @@ do
         native_on_load(document)
         local bar = document:GetElementById("zh_player_filters")
         if bar == nil then return end
+        local visible = true
+
+        local function escaped(text)
+            return (tostring(text):gsub("[%z\1-\31\127]", " "):gsub("&", "&amp;")
+                :gsub("<", "&lt;"):gsub(">", "&gt;"):gsub('"', "&quot;"):gsub("'", "&#39;"))
+        end
+        local function write_profile(id, value)
+            local element = document:GetElementById("zh_profile_" .. id)
+            if element ~= nil then
+                local text = escaped(value)
+                if element.inner_rml ~= text then element.inner_rml = text end
+            end
+        end
+        local function clear_profile(message)
+            write_profile("name", message)
+            write_profile("account", "—"); write_profile("server", "—"); write_profile("vtc", "—")
+            if type(PlayerPanel.ClearLocalProfile) == "function" then pcall(PlayerPanel.ClearLocalProfile) end
+        end
+        local function refresh_profile()
+            local section = document:GetElementById("zh_profile_section")
+            local profile = document:GetElementById("zh_local_profile")
+            if section == nil or profile == nil then return end
+            if not visible or not section:HasAttribute("data-online") or not profile:HasAttribute("data-public") or
+                    section:HasAttribute("data-offline") or profile:HasAttribute("data-private") then
+                clear_profile("个人资料已隐藏")
+                return
+            end
+            if type(PlayerPanel.GetLocalProfile) ~= "function" then
+                clear_profile("需要更新并启用原生模块")
+                return
+            end
+            local ok, account, server, name, status, vtc, vtc_id = pcall(PlayerPanel.GetLocalProfile)
+            if not ok or type(account) ~= "number" or account <= 0 or type(server) ~= "number" or
+                    type(name) ~= "string" or name == "" then
+                clear_profile("等待当前玩家数据")
+                return
+            end
+            write_profile("name", name); write_profile("account", account); write_profile("server", server)
+            local states = {[0]="正在查询…", [2]="未加入 VTC", [3]="查询失败，稍后重试", [4]="查询频率受限，稍后重试"}
+            if status == 1 and type(vtc) == "string" and vtc ~= "" and type(vtc_id) == "number" and vtc_id > 0 then
+                write_profile("vtc", vtc .. " · #" .. vtc_id)
+            else
+                write_profile("vtc", states[status] or "暂未获取到")
+            end
+        end
 
         local function ready()
             if type(PlayerPanel.FiltersReady) ~= "function" then return false end
@@ -68,6 +113,7 @@ do
         if search ~= nil then search:AddEventListener("change", reset_scroll) end
 
         local function restore_filter()
+            refresh_profile()
             if not ready() then hide() return end
             local name = current_filter()
             if name == nil then hide() return end
@@ -76,7 +122,9 @@ do
         end
         -- The native adapter may bind after this document was loaded.
         PlayerPanel.ZHRefreshFilterTabs = restore_filter
-        document:AddEventListener("show", restore_filter)
+        document:AddEventListener("show", function() visible = true; restore_filter() end)
+        document:AddEventListener("hide", function() visible = false; clear_profile("等待当前玩家数据") end)
+        document:AddEventListener("player_panel__server_info", function() clear_profile("等待当前玩家数据") end)
         restore_filter()
     end
 end

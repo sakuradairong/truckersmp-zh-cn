@@ -20,6 +20,7 @@ import installer_settings
 def collect_licenses(folder):
     folder.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(ROOT / 'vendor/minhook/LICENSE.txt', folder / 'MinHook.txt')
+    shutil.copyfile(ROOT / 'vendor/picojson/LICENSE.txt', folder / 'PicoJSON.txt')
     # These are copied from installed build dependencies; they contain no user data.
     for package in ('Pillow', 'PyInstaller', 'fonttools'):
         distribution = metadata.distribution(package)
@@ -57,6 +58,7 @@ def collect_licenses(folder):
 
 def build(assets):
     require(sys.platform == 'win32' and sys.maxsize > 2**32, 'Build on Windows x64')
+    assets = plain(Path(assets).absolute())
     backend.bundled_fonts(assets)
     installer_settings.bundled(assets)
     work = ROOT / 'build/installer-package'
@@ -70,6 +72,7 @@ StringFileInfo([StringTable('040904b0', [
 StringStruct('FileDescription', 'TruckersMP Simplified Chinese installer'),
 StringStruct('FileVersion', '0.3.0-preview.5'),
 StringStruct('ProductName', 'TruckersMP ZH-CN'),
+StringStruct('CompanyName', 'RainySY'),
 StringStruct('ProductVersion', '0.3.0-preview.5'),
 StringStruct('LegalCopyright', 'MIT; bundled fonts under SIL OFL 1.1')])]),
 VarFileInfo([VarStruct('Translation', [1033,1200])])])""", encoding='utf-8')
@@ -103,6 +106,7 @@ def package(executable, assets):
     instructions = folder / '安装说明.txt'
     instructions.write_text(
         'TruckersMP 简体中文安装器 ' + backend.VERSION + '\n\n'
+        '制作：' + backend.AUTHOR_NAME + ' · ' + backend.AUTHOR_URL + '\n\n'
         '1. 正常退出 ETS2、ATS 和 TMP 启动器。\n'
         '2. 双击同目录的安装器 EXE，确认 TMP 安装目录及 ETS2 游戏目录。\n'
         '3. 点击“安装汉化”，完成后正常从 TMP 启动器进入游戏。\n'
@@ -113,6 +117,8 @@ def package(executable, assets):
         '货运中文修复和玩家筛选需保留勾选原生模块并确认 ETS2 目录；取消勾选仅安装静态资源。\n'
         '筛选为全部、好友、同车队及 TruckersMP 工作人员；可与搜索和历史叠加。\n'
         '筛选所需代码不兼容时隐藏页签并保留原列表。\n'
+        'TAB 个人资料自动读取当前玩家昵称、TMP ID 和服务器 ID；VTC 车队通过 TruckersMP 公开 API 联网查询。\n'
+        '查询在后台执行，离线、隐私模式或关闭面板后暂停；失败时显示状态，不影响原有列表。\n'
         '货运字库覆盖当前基础游戏简体中文所需字符，已检查 11/14/18/21px；模组新增字符仍可能缺失。\n'
         '备份保存在 %LOCALAPPDATA%\\TruckersMPZH，删除下载的 EXE 不会删除备份。\n'
         '无需 Python、编译器、SDK、联网下载或用户自备字体。\n'

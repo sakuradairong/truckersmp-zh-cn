@@ -11,6 +11,9 @@ import settings_compatibility
 import resources
 
 VERSION = '0.3.0-preview.5'
+AUTHOR_NAME = 'RainySY'
+AUTHOR_URL = 'https://github.com/sakuradairong'
+PROJECT_URL = AUTHOR_URL + '/truckersmp-zh-cn'
 FONT_FILES = {'regular': 'TMPZHSans-Regular.ttf', 'semibold': 'TMPZHSans-SemiBold.ttf', 'mono': 'TMPZHMono-Regular.ttf',
               'settings_regular': 'TmpSettingsZH.ttf', 'settings_semibold': 'TmpSettingsZH-Semibold.ttf',
               'freight_regular': 'TmpFreightZH.ttf', 'freight_semibold': 'TmpFreightZH-Semibold.ttf'}

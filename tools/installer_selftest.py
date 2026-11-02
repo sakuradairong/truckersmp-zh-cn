@@ -52,6 +52,9 @@ def run(directory, source=None, assets=None):
                 for name in ('all', 'friends', 'company', 'staff')) and
             b'PlayerPanel.ZHRefreshFilterTabs' in ui[0xf437dd82ad50f511],
             'Player-filter resources were not included in the installed package')
+    require(b'id="zh_profile_section"' in ui[0x3e73ff2535fef0e0] and
+            b'RainySY' in ui[0x3e73ff2535fef0e0] and b'GetLocalProfile' in ui[0xf437dd82ad50f511],
+            'Personal profile resources were not included in the installed package')
     native = SettingsStore(clone, state, processes=lambda: [])
     native_result = native.install(game, assets, backend.VERSION)
     require(native_result['state'] == 'installed' and (executable.parent / 'plugins' / DLL).is_file(),
@@ -77,7 +80,7 @@ def run(directory, source=None, assets=None):
                 for name, value in live_before.items()), 'Read-only source changed during self-test')
     report = dict(passed=True, version=backend.VERSION, files=len(resources.OUTPUTS), install=True,
                   idempotence=True, restore=True, persistent_receipts=True, live_source_unchanged=True,
-                  unicode_paths=True, game_started=False, player_filter_resources=True)
+                  unicode_paths=True, game_started=False, player_filter_resources=True, personal_profile_resources=True)
     report.update(settings_installed=True, settings_restore=True, settings_idempotence=True,
                   settings_path='bin/win_x64/plugins/' + DLL)
     atomic_json(directory / 'self-test.json', report)
