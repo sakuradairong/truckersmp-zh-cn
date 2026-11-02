@@ -1,4 +1,4 @@
-"""Persistent, journaled resource installation. Never restores over unknown user changes."""
+"""Journaled resource installation; changed targets are archived before replacement."""
 from __future__ import annotations
 from contextlib import contextmanager
 import os
@@ -112,8 +112,29 @@ class Store:
             key = 'installed_sha256' if state == 'installed' else 'previous_sha256'
             if any(self.actual(name) != row[key] for name, row in receipt['files'].items()):
                 state = 'changed'
-        return dict(state=state, can_restore=receipt['state'] != 'restored', version=receipt.get('version', ''),
-                    backup_directory=str(package / 'backups'))
+        return dict(state=state, can_restore=receipt['state'] != 'restored' or state == 'changed',
+                    version=receipt.get('version', ''), backup_directory=str(package / 'backups'),
+                    recovery_directory=str(self.directory))
+
+    def preserve_changed(self, changes, transaction, progress):
+        """Persist exact current bytes (or absence) before replacing changed targets.
+
+        Callers supply validated target paths and recheck these hashes before writes.
+        These copies never replace the original installation baseline.
+        """
+        if not changes:
+            return
+        folder = plain(self.directory / 'replaced-files' / uuid.uuid4().hex, missing=True)
+        folder.mkdir(parents=True)
+        progress('正在备份发生变化的文件，随后直接替换…')
+        rows = {}
+        for name, (target, expected) in changes.items():
+            filename = self.backup_name(name) if expected is not None else None
+            if filename:
+                copy_checked(target, folder / filename, expected)
+            rows[name] = dict(path=str(target), sha256=expected, copy=filename)
+        atomic_json(folder / 'manifest.json', dict(schema=1, transaction=transaction,
+                    tmp_root=str(self.tmp_root), files=rows))
 
     def install(self, font_regular, font_semibold, font_mono, version, progress=lambda message: None, *, settings_fonts=None, freight_fonts=None):
         with self.lock():
@@ -125,16 +146,15 @@ class Store:
         package, previous = self.current()
         if previous is not None and previous['state'] != 'restored':
             require(previous['state'] == 'installed', 'An interrupted operation must be restored first')
-            require(all(self.actual(name) == row['installed_sha256'] for name, row in previous['files'].items()),
-                    'Localization target changed; restore or resolve changes first')
-            try:
-                resources.verify(self.tmp_root, package, font_paths=(font_regular, font_semibold, font_mono) +
-                                 (tuple(settings_fonts) if settings_fonts else ()) +
-                                 (tuple(freight_fonts) if freight_fonts else ()))
-            except (ValueError, OSError):
-                pass  # Rebuild changed resources/fonts or an older package schema before touching targets.
-            else:
-                return dict(state='already_installed', files=len(resources.OUTPUTS))
+            if all(self.actual(name) == row['installed_sha256'] for name, row in previous['files'].items()):
+                try:
+                    resources.verify(self.tmp_root, package, font_paths=(font_regular, font_semibold, font_mono) +
+                                     (tuple(settings_fonts) if settings_fonts else ()) +
+                                     (tuple(freight_fonts) if freight_fonts else ()))
+                except (ValueError, OSError):
+                    pass  # Rebuild changed inputs or an older package before touching targets.
+                else:
+                    return dict(state='already_installed', files=len(resources.OUTPUTS))
         transaction = uuid.uuid4().hex
         package = plain(self.directory / 'packages' / transaction, missing=True)
         package.mkdir(parents=True)
@@ -210,25 +230,31 @@ class Store:
         package, receipt = self.current()
         require(receipt is not None, 'No installation receipt was found')
         rows = receipt['files']
-        # Validate every target and every backup before changing any file.
+        # Validate the original backups, then archive changed targets before any write.
+        observed, changes = {}, {}
         for index, (name, row) in enumerate(rows.items()):
-            require(self.actual(name) in (row['previous_sha256'], row['installed_sha256']),
-                    'Localization target changed; preserving it: ' + name)
+            observed[name] = self.actual(name)
+            if observed[name] not in (row['previous_sha256'], row['installed_sha256']):
+                changes[name] = (self.target(name), observed[name])
             if row['previous_sha256'] is not None:
                 backup = plain(package / 'backups' / self.backup_name(name))
                 require(digest(backup) == row['previous_sha256'], 'Restore backup changed; preserving files')
+        self.preserve_changed(changes, receipt['transaction'], progress)
+        require(all(self.actual(name) == value for name, value in observed.items()),
+                'Localization target changed during backup; retry after closing other programs')
         progress('正在恢复安装前的文件…')
         atomic_json(package / 'receipt.json', dict(receipt, state='restoring'))
         closed(self.processes)
         for name, row in rows.items():
             actual = self.actual(name)
-            require(actual in (row['previous_sha256'], row['installed_sha256']), 'Localization target changed during restore')
+            require(actual == observed[name], 'Localization target changed during restore')
             if actual == row['previous_sha256']:
                 continue
             target = self.target(name)
             if row['previous_sha256'] is None:
                 target.unlink()
             else:
+                target.parent.mkdir(parents=True, exist_ok=True)
                 backup = package / 'backups' / self.backup_name(name)
                 staged = plain(target.with_name(target.name + '.tmpzh-restore-' + receipt['transaction']), missing=True)
                 if staged.exists():
@@ -236,7 +262,7 @@ class Store:
                             'Restore staging file changed; preserving it')
                 else:
                     copy_checked(backup, staged, row['previous_sha256'])
-                require(self.actual(name) == row['installed_sha256'], 'Localization target changed during restore')
+                require(self.actual(name) == observed[name], 'Localization target changed during restore')
                 os.replace(staged, target)
         require(all(self.actual(name) == row['previous_sha256'] for name, row in rows.items()), 'Restore verification failed')
         atomic_json(package / 'receipt.json', dict(receipt, state='restored'))

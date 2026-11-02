@@ -127,7 +127,7 @@ def install(tmp_root, assets=None, state_root=None, progress=lambda message: Non
         if include_settings:
             status = inspect(tmp_root, state_root, game_root=game_root, include_settings=True, assets=assets)
             require(status['compatible'], status['detail'])
-            require(status['settings']['state'] in ('not_installed', 'restored', 'installed'),
+            require(status['settings']['state'] in ('not_installed', 'restored', 'installed', 'changed'),
                     'An interrupted Settings operation must be restored first')
             game_root = game_root or status['settings'].get('game_root')
         fonts = bundled_fonts(assets)
@@ -174,7 +174,7 @@ def friendly_error(exc):
         ('Another installer is already running', '另一个安装器正在操作，请等待它完成。'),
         ('interrupted operation', '上次安装未完成。请先点击“恢复安装前状态”。'),
         ('Installation interrupted', '安装中断，恢复备份已保留。请先恢复安装前状态，再启动游戏。'),
-        ('Localization target changed', '汉化文件已被其他程序修改，为保护这些文件，操作已停止。'),
+        ('Localization target changed', '操作过程中目标文件再次发生变化，已停止替换。请关闭占用程序后重试。'),
         ('Restore backup changed', '恢复备份损坏或被修改，已停止恢复并保留当前文件。'),
         ('Reparse/link', '所选路径包含链接或重解析点，请选择实际安装目录。'),
         ('Bundled font', '安装器内的字体文件校验失败，请重新下载完整安装器。'),

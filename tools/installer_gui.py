@@ -215,7 +215,7 @@ class InstallerApp:
     def apply_status(self, status):
         self.current_status = status
         labels = {'not_installed': '尚未通过本安装器安装汉化', 'installed': '汉化已安装，可恢复安装前状态',
-                  'restored': '已恢复安装前状态，备份仍保留', 'changed': '检测到文件变化，请保留文件并核对后再操作',
+                  'restored': '已恢复安装前状态，备份仍保留', 'changed': '检测到文件变化；安装或恢复时将备份后直接替换',
                   'applying': '上次安装中断，请先恢复安装前状态', 'restoring': '上次恢复中断，请继续恢复'}
         native = status.get('settings', {})
         if not self.game_path.get() and native.get('game_root'):
@@ -230,8 +230,8 @@ class InstallerApp:
             if not all(features.get(key) for key in ('settings', 'freight', 'players')):
                 prefix = '资源和部分原生功能可安装；待适配功能将保留原版行为。'
         self.state_text.set(prefix + labels[status['state']] + '\n原生模块：' + labels.get(native.get('state'), '尚未检查') + feature_text + detail)
-        allowed = ('not_installed', 'restored', 'installed')
-        self.install_button.configure(text='更新 / 检查汉化' if status['state'] == 'installed' else '安装汉化',
+        allowed = ('not_installed', 'restored', 'installed', 'changed')
+        self.install_button.configure(text='更新 / 检查汉化' if status['state'] in ('installed', 'changed') else '安装汉化',
             state='normal' if status['compatible'] and status['state'] in allowed and
             (not self.include_settings.get() or native.get('state') in allowed) else 'disabled')
         self.restore_button.configure(state='normal' if status['can_restore'] else 'disabled')
@@ -258,7 +258,9 @@ class InstallerApp:
         self.run(self.inspection(path), self.apply_status)
 
     def open_backups(self):
-        path = self.current_status.get('backup_directory') or self.current_status.get('settings', {}).get('backup_directory')
+        native = self.current_status.get('settings', {})
+        path = (self.current_status.get('recovery_directory') or native.get('recovery_directory') or
+                self.current_status.get('backup_directory') or native.get('backup_directory'))
         if path:
             try:
                 os.startfile(plain(path))
@@ -336,6 +338,16 @@ def main():
                     'TAB / 个人资料：可用' in app.state_text.get() and not app.install_button.instate(['disabled']))
                 if not result['feature_status_ui']:
                     raise ValueError('Per-feature compatibility UI self-test failed')
+                for resource_state, native_state in (('changed', 'restored'), ('installed', 'changed'), ('changed', 'changed')):
+                    status.update(state=resource_state, can_restore=True, settings=dict(state=native_state))
+                    app.apply_status(status)
+                    if app.install_button.instate(['disabled']) or app.restore_button.instate(['disabled']):
+                        raise ValueError('Changed-file replacement buttons are disabled')
+                status['compatible'] = False
+                app.apply_status(status)
+                if not app.install_button.instate(['disabled']):
+                    raise ValueError('Incompatible installation was enabled')
+                result['changed_file_actions_ui'] = True
                 app.close()
             else:
                 fonts = backend.bundled_fonts(args.assets)

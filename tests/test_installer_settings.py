@@ -122,17 +122,83 @@ class Installation(unittest.TestCase):
         self.assertEqual(self.target.read_bytes(), b'original settings DLL')
         self.assertTrue((old / 'previous.dll').is_file())
 
-    def test_user_changes_and_corrupt_backups_are_preserved(self):
+    def archived(self):
+        rows = []
+        for manifest in (self.store.anchor.directory / 'replaced-files').glob('*/manifest.json'):
+            for row in json.loads(manifest.read_text(encoding='utf-8'))['files'].values():
+                data = (manifest.parent / row['copy']).read_bytes() if row['copy'] else None
+                self.assertEqual(sha(data) if data is not None else None, row['sha256'])
+                rows.append(data)
+        return rows
+
+    def test_changed_dll_is_archived_before_default_restore(self):
+        self.install()
+        self.target.write_bytes(b'user changed')
+        self.store.restore()
+        self.assertEqual(self.target.read_bytes(), b'original settings DLL')
+        self.assertEqual(self.archived(), [b'user changed'])
+
+    def test_changed_dll_is_reinstalled_with_first_backup_preserved(self):
+        self.install()
+        self.target.write_bytes(b'user changed')
+        self.assertEqual(self.install()['state'], 'installed')
+        self.assertEqual(self.target.read_bytes(), b'localized settings DLL')
+        self.assertEqual(self.archived(), [b'user changed'])
+        self.store.restore()
+        self.assertEqual(self.target.read_bytes(), b'original settings DLL')
+
+    def test_deleted_dll_and_parent_can_be_restored(self):
+        self.install()
+        self.target.unlink(); self.target.parent.rmdir()
+        self.store.restore()
+        self.assertEqual(self.target.read_bytes(), b'original settings DLL')
+        self.assertEqual(self.archived(), [None])
+
+    def test_changed_dll_after_restore_can_be_restored_again(self):
+        self.install(); self.store.restore()
+        self.target.write_bytes(b'after restore')
+        self.assertTrue(self.store.status()['can_restore'])
+        self.store.restore()
+        self.assertEqual(self.target.read_bytes(), b'original settings DLL')
+        self.assertEqual(self.archived(), [b'after restore'])
+
+    def test_changed_new_dll_is_archived_then_removed_on_restore(self):
+        self.target.unlink()
+        self.install()
+        self.target.write_bytes(b'user changed')
+        self.store.restore()
+        self.assertFalse(self.target.exists())
+        self.assertEqual(self.archived(), [b'user changed'])
+
+    def test_native_archive_failure_leaves_changed_dll_in_place(self):
+        self.install()
+        self.target.write_bytes(b'user changed')
+        with patch.object(Store, 'preserve_changed', side_effect=OSError('archive failed')):
+            with self.assertRaisesRegex(OSError, 'archive failed'):
+                self.store.restore()
+        self.assertEqual(self.target.read_bytes(), b'user changed')
+        self.assertEqual(self.store.current()[1]['state'], 'installed')
+
+    def test_native_second_change_during_archive_is_not_overwritten(self):
+        self.install()
+        self.target.write_bytes(b'first change')
+        preserve = self.store.anchor.preserve_changed
+        def change_again(*args):
+            preserve(*args)
+            self.target.write_bytes(b'second change')
+        with patch.object(self.store.anchor, 'preserve_changed', side_effect=change_again):
+            with self.assertRaisesRegex(ValueError, 'changed during backup'):
+                self.store.restore()
+        self.assertEqual(self.target.read_bytes(), b'second change')
+        self.assertEqual(self.archived(), [b'first change'])
+
+    def test_corrupt_backup_blocks_restore_even_for_changed_dll(self):
         self.install(); package, _ = self.store.current()
         self.target.write_bytes(b'user changed')
-        with self.assertRaisesRegex(ValueError, 'target changed'):
-            self.store.restore()
-        self.assertEqual(self.target.read_bytes(), b'user changed')
-        self.target.write_bytes(b'localized settings DLL')
         (package / 'previous.dll').write_bytes(b'corrupt')
         with self.assertRaisesRegex(ValueError, 'backup changed'):
             self.store.restore()
-        self.assertEqual(self.target.read_bytes(), b'localized settings DLL')
+        self.assertEqual(self.target.read_bytes(), b'user changed')
 
     def test_power_loss_after_replacement_can_be_restored(self):
         replace = os.replace
@@ -200,6 +266,21 @@ class Installation(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'Resource localization installed; Settings incomplete') as error:
                 backend.install(self.tmp, self.assets, self.state, game_root=self.game, include_settings=True)
             self.assertIn('资源汉化已安装，但 Settings 安装未完成', backend.friendly_error(error.exception))
+
+    def test_backend_accepts_changed_native_state_for_direct_update(self):
+        self.install()
+        self.target.write_bytes(b'changed before backend update')
+        with patch.object(backend, 'Store') as resource_type, patch.object(
+                backend.resources, 'check_compatibility', return_value={}), patch.object(
+                backend, 'bundled_fonts', return_value={key: self.assets / DLL for key in backend.FONT_FILES}), patch.object(
+                backend, 'SettingsStore', return_value=self.store):
+            resource_type.return_value.status.return_value = dict(state='installed', can_restore=True)
+            resource_type.return_value._install.return_value = dict(state='installed')
+            result = backend.install(self.tmp, self.assets, self.state, game_root=self.game, include_settings=True)
+        self.assertEqual(result['settings']['state'], 'installed')
+        self.assertEqual(self.archived(), [b'changed before backend update'])
+        self.store.restore()
+        self.assertEqual(self.target.read_bytes(), b'original settings DLL')
 
     def assert_competing_operations_blocked(self):
         for action in ('install', 'restore'):

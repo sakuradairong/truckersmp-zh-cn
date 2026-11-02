@@ -201,15 +201,104 @@ class Recovery(PrivateTree):
         self.assert_before()
         self.assertEqual(self.store.status()['state'], 'restored')
 
-    def test_unknown_user_edit_is_preserved_before_any_restore_write(self):
+    def archived(self):
+        result = {}
+        for manifest in (self.store.directory / 'replaced-files').glob('*/manifest.json'):
+            for name, row in json.loads(manifest.read_text(encoding='utf-8'))['files'].items():
+                data = (manifest.parent / row['copy']).read_bytes() if row['copy'] else None
+                self.assertEqual(sha(data) if data is not None else None, row['sha256'])
+                result[name] = data
+        return result
+
+    def test_changed_file_is_archived_and_original_restored_by_default(self):
         self.install()
         target = self.tmp / resources.OUTPUTS[-1]
         target.write_bytes(b'user-owned edit')
+        self.assertEqual(self.store.status()['state'], 'changed')
+        self.store.restore(); self.assert_before()
+        self.assertEqual(self.archived(), {resources.OUTPUTS[-1]: b'user-owned edit'})
+
+    def test_changed_install_repairs_without_resetting_first_restore_point(self):
+        self.install()
+        old, _ = self.store.current()
+        name = resources.OUTPUTS[0]
+        (self.tmp / name).write_bytes(b'changed overlay')
+        self.assertEqual(self.install()['state'], 'installed')
+        self.assertEqual(self.store.status()['state'], 'installed')
+        self.assertNotEqual(self.store.current()[0], old)
+        self.assertEqual(self.archived()[name], b'changed overlay')
+        self.store.restore(); self.assert_before()
+
+    def test_deleted_targets_and_parent_directories_can_be_restored(self):
+        self.install()
+        for name in resources.OUTPUTS:
+            (self.tmp / name).unlink()
+        # Only the known fixture directory is removed, after it is empty.
+        (self.tmp / 'data/shared_mod/fonts').rmdir()
+        self.store.restore(); self.assert_before()
+        self.assertTrue(all(data is None for data in self.archived().values()))
+
+    def test_files_changed_after_restore_can_be_restored_again(self):
+        self.install(); self.store.restore()
+        name = resources.OUTPUTS[0]
+        (self.tmp / name).write_bytes(b'after restore')
+        self.assertTrue(self.store.status()['can_restore'])
+        self.store.restore(); self.assert_before()
+        self.assertEqual(self.archived()[name], b'after restore')
+
+    def test_archive_failure_leaves_all_targets_and_receipt_untouched(self):
+        self.install()
+        (self.tmp / resources.OUTPUTS[-1]).write_bytes(b'changed')
         before = {name: self.store.actual(name) for name in resources.OUTPUTS}
-        with self.assertRaisesRegex(ValueError, 'target changed'):
-            self.store.restore()
+        with patch.object(installer_store, 'copy_checked', side_effect=OSError('archive failed')):
+            with self.assertRaisesRegex(OSError, 'archive failed'):
+                self.store.restore()
         self.assertEqual({name: self.store.actual(name) for name in resources.OUTPUTS}, before)
-        self.assertEqual(target.read_bytes(), b'user-owned edit')
+        self.assertEqual(self.store.current()[1]['state'], 'installed')
+
+    def test_second_change_during_archive_is_not_overwritten(self):
+        self.install()
+        name = resources.OUTPUTS[-1]
+        target = self.tmp / name
+        target.write_bytes(b'first change')
+        before = {n: self.store.actual(n) for n in resources.OUTPUTS}
+        copy_checked = installer_store.copy_checked
+        def change_after_copy(source, destination, expected):
+            copy_checked(source, destination, expected)
+            if Path(source) == target:
+                target.write_bytes(b'second change')
+        with patch.object(installer_store, 'copy_checked', side_effect=change_after_copy):
+            with self.assertRaisesRegex(ValueError, 'changed during backup'):
+                self.store.restore()
+        before[name] = sha(b'second change')
+        self.assertEqual({n: self.store.actual(n) for n in resources.OUTPUTS}, before)
+        self.assertEqual(self.archived()[name], b'first change')
+        self.assertEqual(self.store.current()[1]['state'], 'installed')
+
+    def test_changed_restore_power_loss_keeps_archive_and_original_baseline(self):
+        self.install()
+        name = resources.OUTPUTS[-1]
+        (self.tmp / name).write_bytes(b'changed before interruption')
+        replace = os.replace
+        def power_loss(source, destination):
+            replace(source, destination)
+            if Path(destination).is_relative_to(self.tmp):
+                raise SystemExit('synthetic power loss')
+        with patch.object(installer_store.os, 'replace', side_effect=power_loss), self.assertRaises(SystemExit):
+            self.store.restore()
+        self.assertEqual(self.archived()[name], b'changed before interruption')
+        self.store.restore(); self.assert_before()
+
+    def test_incompatible_changed_install_keeps_current_files_and_receipt(self):
+        self.install()
+        old, _ = self.store.current()
+        (self.tmp / resources.OUTPUTS[0]).write_bytes(b'changed overlay')
+        before = {n: self.store.actual(n) for n in resources.OUTPUTS}
+        with patch.object(resources, 'build', side_effect=ValueError('Incompatible resource')):
+            with self.assertRaisesRegex(ValueError, 'Incompatible resource'):
+                self.install()
+        self.assertEqual(self.store.current()[0], old)
+        self.assertEqual({n: self.store.actual(n) for n in resources.OUTPUTS}, before)
 
     def test_corrupt_backup_blocks_every_restore_write(self):
         self.install()

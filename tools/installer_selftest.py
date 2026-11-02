@@ -1,7 +1,7 @@
 """Exercise the real installer exclusively in a NEW private test directory."""
 from pathlib import Path
 
-from common import atomic_json, digest, plain, require
+from common import atomic_json, digest, plain, read_json, require
 import installer_backend as backend
 from installer_store import Store
 import resources
@@ -69,6 +69,20 @@ def run(directory, source=None, assets=None):
     require(again['state'] == 'already_installed', 'Idempotence self-test failed')
     require(native.install(game, assets, backend.VERSION)['state'] == 'already_installed',
             'Settings idempotence self-test failed')
+    # Reproduce preview.8's blocked mixed state: resources changed, native restored.
+    changed_resource = clone / 'data/shared_mod/ui.mp'
+    changed_resource.write_bytes(b'changed resource before update')
+    native.restore()
+    mixed = backend.inspect(clone, state, game_root=game, include_settings=True, assets=assets)
+    require(mixed['state'] == 'changed' and mixed['settings']['state'] == 'restored' and mixed['compatible'],
+            'Mixed-state fixture was not reproduced')
+    repaired = store.install(fonts['regular'], fonts['semibold'], fonts['mono'], backend.VERSION,
+                             settings_fonts=settings_fonts, freight_fonts=freight_fonts)
+    native.install(game, assets, backend.VERSION)
+    require(repaired['state'] == 'installed' and store.status()['state'] == 'installed',
+            'Changed resource update self-test failed')
+    changed_resource.write_bytes(b'changed resource before restore')
+    native.target(game).write_bytes(b'changed native before restore')
     native.restore()
     require(not (executable.parent / 'plugins' / DLL).exists(), 'Settings restore self-test failed')
     restored = store.restore()
@@ -76,11 +90,21 @@ def run(directory, source=None, assets=None):
             'Restore self-test failed')
     # A new Store instance models closing and re-downloading the portable executable.
     require(Store(clone, state, processes=lambda: []).status()['state'] == 'restored', 'Persistent receipt self-test failed')
+    copies = []
+    for manifest in (store.directory / 'replaced-files').glob('*/manifest.json'):
+        for row in read_json(manifest)['files'].values():
+            if row['copy']:
+                saved = manifest.parent / row['copy']
+                require(digest(saved) == row['sha256'], 'Changed file backup hash differs')
+                copies.append(saved.read_bytes())
+    require(sorted(copies) == sorted([b'changed resource before update', b'changed resource before restore',
+                                     b'changed native before restore']), 'Changed file backups are incomplete')
     require(all((digest(source / name) if (source / name).exists() else None) == value
                 for name, value in live_before.items()), 'Read-only source changed during self-test')
     report = dict(passed=True, version=backend.VERSION, files=len(resources.OUTPUTS), install=True,
                   idempotence=True, restore=True, persistent_receipts=True, live_source_unchanged=True,
-                  unicode_paths=True, game_started=False, player_filter_resources=True, personal_profile_resources=True)
+                  unicode_paths=True, game_started=False, player_filter_resources=True, personal_profile_resources=True,
+                  changed_install_replaced=True, changed_restore_replaced=True, replaced_copies_verified=True)
     report.update(settings_installed=True, settings_restore=True, settings_idempotence=True,
                   settings_path='bin/win_x64/plugins/' + DLL)
     atomic_json(directory / 'self-test.json', report)

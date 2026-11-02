@@ -81,8 +81,9 @@ class SettingsStore:
             key = 'installed_sha256' if state == 'installed' else 'previous_sha256'
             if self.actual(receipt['game_root']) != receipt[key]:
                 state = 'changed'
-        return dict(state=state, can_restore=receipt['state'] != 'restored', game_root=receipt['game_root'],
-                    backup_directory=str(package))
+        return dict(state=state, can_restore=receipt['state'] != 'restored' or state == 'changed',
+                    game_root=receipt['game_root'], backup_directory=str(package),
+                    recovery_directory=str(self.anchor.directory))
 
     def install(self, game_root, assets=None, version='', progress=lambda message: None):
         with self.anchor.lock():
@@ -101,8 +102,7 @@ class SettingsStore:
         if previous and previous['state'] != 'restored':
             require(previous['state'] == 'installed', 'An interrupted Settings operation must be restored first')
             require(str(game_root) == previous['game_root'], 'Restore Settings before changing the ETS2 directory')
-            require(self.actual(game_root) == previous['installed_sha256'], 'Localization target changed: Settings')
-            if previous['installed_sha256'] == expected:
+            if previous['installed_sha256'] == expected and self.actual(game_root) == expected:
                 return dict(state='already_installed', path=str(self.target(game_root)))
             self._restore(progress)
         transaction = uuid.uuid4().hex
@@ -152,23 +152,27 @@ class SettingsStore:
         target = self.target(receipt['game_root'])
         actual = self.actual(receipt['game_root'])
         previous, installed = receipt['previous_sha256'], receipt['installed_sha256']
-        require(actual in (previous, installed), 'Localization target changed: Settings')
         if previous is not None:
             require(digest(plain(package / 'previous.dll')) == previous, 'Restore backup changed: Settings')
+        if actual not in (previous, installed):
+            self.anchor.preserve_changed({'bin/win_x64/plugins/' + DLL: (target, actual)},
+                                         receipt['transaction'], progress)
+        require(self.actual(receipt['game_root']) == actual, 'Localization target changed during backup: Settings')
         atomic_json(package / 'receipt.json', dict(receipt, state='restoring'))
         progress('正在恢复 Settings 安装前状态…')
         closed(self.anchor.processes)
         if actual != previous:
-            require(self.actual(receipt['game_root']) == installed, 'Localization target changed: Settings')
+            require(self.actual(receipt['game_root']) == actual, 'Localization target changed: Settings')
             if previous is None:
                 target.unlink()
             else:
+                target.parent.mkdir(parents=True, exist_ok=True)
                 stage = plain(target.with_name(target.name + '.tmpzh-restore-' + receipt['transaction']), missing=True)
                 if stage.exists():
                     require(digest(stage) == previous, 'Restore staging file changed: Settings')
                 else:
                     copy_checked(package / 'previous.dll', stage, previous)
-                require(self.actual(receipt['game_root']) == installed, 'Localization target changed: Settings')
+                require(self.actual(receipt['game_root']) == actual, 'Localization target changed: Settings')
                 os.replace(stage, target)
         require(self.actual(receipt['game_root']) == previous, 'Restore verification failed: Settings')
         atomic_json(package / 'receipt.json', dict(receipt, state='restored'))
