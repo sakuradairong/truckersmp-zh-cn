@@ -1,8 +1,34 @@
-# TruckersMP Simplified Chinese UI Patch
+# TruckersMP Chinese Panels and UI Localization
 
 [简体中文](README.md) | **English**
 
-An unofficial TruckersMP UI localization project for Windows x64 and Euro Truck Simulator 2, with Simplified Chinese interfaces, an offline graphical installer, and restore tools.
+An unofficial TruckersMP Chinese UI project for Windows x64 and Euro Truck Simulator 2, with self-drawn panels, a native localization installer, and restore tools.
+
+## Self-drawn companion panels
+
+The new panels and freight research are maintained in this repository. The original speed-display/toolbox project remains separate; its Git history is not imported here.
+
+| Target | Source version | Description |
+| --- | --- | --- |
+| [In-game DLL](overlay/README.md) | **Truck Companion Overlay 0.2.2** | Public TMP Render/Input SDK with Dear ImGui; nearby players, own speed, profile/VTC, current job, and settings |
+| [Standalone Windows panel](panel/README.md) | **Truck Companion Panel 0.1.0** | Separate EXE with SCS and optional TMP collectors, retained as a fallback mode |
+
+Version 0.2.2 fixes the missing ImGui platform-backend teardown that caused a context-destruction assertion. Compilation is not in-game acceptance. Freight creation and direct pickup remain [research](overlay/FREIGHT-DEEP-DIVE.md); the current freight page only displays job information.
+
+Supply an external [SCS SDK](https://download.eurotrucksimulator2.com/scs_sdk_1_16.zip) include directory, then use these separate entry points:
+
+```powershell
+.\overlay\build.ps1 -ScsSdk 'X:\scs-sdk-1.16\include'
+.\overlay\package.ps1
+# Standalone: .\panel\build.ps1 -ScsSdk 'X:\scs-sdk-1.16\include'
+#             .\panel\package.ps1
+```
+
+These scripts only compile, link, and package files. They do not run tests, smoke tests, SHA verification, installation, or the game. Do not load both panel collector DLLs together. See each target's README for replacement and rollback instructions.
+
+## Native UI localization installer
+
+The following instructions describe the original resource/native localization route, which has its own version and build chain.
 
 Created by [RainySY](https://github.com/sakuradairong). The installer and TAB profile card show this credit, and the installer links to the GitHub profile.
 
@@ -99,7 +125,7 @@ This project is not certified by TruckersMP and does not guarantee that the nati
 - Windows x64 and Python 3.11 or later.
 - A legitimate local TMP / ETS2 installation with recognizable client code and resource structures.
 - Visual Studio C++ x64 Build Tools, the Windows SDK, and [SCS Telemetry SDK 1.16](https://download.eurotrucksimulator2.com/scs_sdk_1_16.zip) to build the native module.
-- `$ScsSdk` must point to the include directory containing `scssdk_telemetry.h`. The SDK is not included in this repository. The project uses the SCS plugin loader entry point and does not depend on the TruckersMP SDK.
+- `$ScsSdk` must point to the include directory containing `scssdk_telemetry.h`. The SCS SDK is not included in this repository. The native localization installer only uses its loader entry point; the new companion targets also use SCS telemetry and the public SDK in `vendor/tmp-sdk`.
 
 Run these commands in PowerShell and replace the example directories with your actual paths:
 

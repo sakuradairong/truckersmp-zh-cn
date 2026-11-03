@@ -1,8 +1,34 @@
-# TruckersMP 简体中文界面补丁
+# TruckersMP 中文面板与界面汉化
 
 **简体中文** | [English](README.en.md)
 
-面向 Windows x64 / Euro Truck Simulator 2 的非官方 TruckersMP 界面汉化项目，提供中文界面、离线图形安装器和恢复工具。
+面向 Windows x64 / Euro Truck Simulator 2 的非官方 TruckersMP 中文界面项目，包含独立自绘面板、原生界面汉化安装器和恢复工具。
+
+## 独立自绘面板
+
+新增面板及货运研究在本仓库维护；原速度显示/工具箱项目继续单独维护，两者不共享提交历史。
+
+| 方案 | 当前源码版本 | 说明 |
+| --- | --- | --- |
+| [游戏内 DLL 面板](overlay/README.md) | **Truck Companion Overlay 0.2.2** | TMP 官方 Render/Input SDK + Dear ImGui 自绘，支持附近玩家、本车速度、资料/VTC、当前任务及设置 |
+| [独立 Windows 悬浮面板](panel/README.md) | **Truck Companion Panel 0.1.0** | 独立 EXE，SCS 采集与可选 TMP SDK 采集；保留作可回退模式 |
+
+0.2.2 包含 ImGui 平台后端清理修复，解决销毁上下文时的断言条件。源码编译不代表游戏内修复验收。货运页目前只展示任务，生成与现场接取仍处于[深入研究](overlay/FREIGHT-DEEP-DIVE.md)阶段；另见[迁移设计](panel/INPROCESS-OVERLAY-RESEARCH.md)。
+
+面板有独立的编译与打包入口，不调用下面的原生汉化构建链。准备外部 [SCS SDK](https://download.eurotrucksimulator2.com/scs_sdk_1_16.zip) 的 include 目录后运行：
+
+```powershell
+.\overlay\build.ps1 -ScsSdk 'X:\scs-sdk-1.16\include'
+.\overlay\package.ps1
+# 独立窗口模式：.\panel\build.ps1 -ScsSdk 'X:\scs-sdk-1.16\include'
+#                 .\panel\package.ps1
+```
+
+这些入口只编译、链接和打包，不执行测试、烟测或 SHA 校验，也不自动安装或启动游戏。两个面板模式的 DLL 不应同时加载；替换与回退步骤见各自 README。
+
+## 原生界面汉化安装器
+
+以下说明对应原有资源/原生汉化路线，版本与独立自绘面板分别维护。
 
 制作：[RainySY](https://github.com/sakuradairong)。安装器和 TAB 个人资料卡显示作者署名，安装器提供 GitHub 主页入口。
 
@@ -99,7 +125,7 @@
 - Windows x64、Python 3.11 或更高版本。
 - 本机合法安装的 TMP / ETS2，且所需客户端代码和资源结构可识别。
 - 构建原生模块需要 Visual Studio C++ x64 Build Tools、Windows SDK，以及 [SCS Telemetry SDK 1.16](https://download.eurotrucksimulator2.com/scs_sdk_1_16.zip)。
-- `$ScsSdk` 必须指向包含 `scssdk_telemetry.h` 的 include 目录。SDK 不随仓库提供；本项目只使用 SCS 插件加载入口，不依赖 TruckersMP SDK。
+- `$ScsSdk` 必须指向包含 `scssdk_telemetry.h` 的 include 目录。SCS SDK 不随仓库提供；原生汉化安装器只使用 SCS 插件加载入口。新增的 `panel/`、`overlay/` 另用 SCS 遥测与 `vendor/tmp-sdk` 中的公开 TMP SDK。
 
 在 PowerShell 中运行，并将示例目录替换为实际位置：
 

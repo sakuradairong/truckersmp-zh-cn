@@ -20,6 +20,8 @@ __pycache__/
 *.jpg
 *.zip
 *.log
+*.dmp
+*.ilk
 settings_profile.h
 native_assign_fixture.h
 native-profile.json
