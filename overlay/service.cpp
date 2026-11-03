@@ -16,7 +16,7 @@ struct Reply {DWORD status=0,retry=60;std::string body;};
 bool Stopped(HANDLE event){return WaitForSingleObject(event,0)==WAIT_OBJECT_0;}
 Reply Get(const std::wstring& path,HANDLE stop){
     Reply out;if(Stopped(stop))return out;
-    Internet session{WinHttpOpen(L"TruckCompanionOverlay/0.2.4",WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,WINHTTP_NO_PROXY_NAME,WINHTTP_NO_PROXY_BYPASS,0)};
+    Internet session{WinHttpOpen(L"TruckCompanionOverlay/0.2.5",WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,WINHTTP_NO_PROXY_NAME,WINHTTP_NO_PROXY_BYPASS,0)};
     if(!session.h)return out;WinHttpSetTimeouts(session.h,2000,2000,2000,2000);
     Internet connection{WinHttpConnect(session.h,L"api.truckersmp.com",INTERNET_DEFAULT_HTTPS_PORT,0)};if(!connection.h||Stopped(stop))return out;
     Internet request{WinHttpOpenRequest(connection.h,L"GET",path.c_str(),nullptr,WINHTTP_NO_REFERER,WINHTTP_DEFAULT_ACCEPT_TYPES,WINHTTP_FLAG_SECURE)};if(!request.h)return out;
@@ -50,7 +50,13 @@ std::uint64_t Id(const picojson::value& v){
     if(v.is<std::string>()){const auto& s=v.get<std::string>();if(s.empty()||s.size()>20||s.find_first_not_of("0123456789")!=std::string::npos)return 0;try{return std::stoull(s);}catch(...){}}return 0;
 }
 std::string Text(const picojson::value& v){if(!v.is<std::string>()||v.get<std::string>().size()>1024)return {};return companion::Utf8(companion::Wide(v.get<std::string>()));}
-bool Good(const Reply& reply,picojson::value& out){if(reply.status!=200||!picojson::parse(out,reply.body).empty())return false;const auto& error=Field(out,"error");return error.is<bool>()&&!error.get<bool>();}
+bool Good(const Reply& reply,picojson::value& out){
+    if(reply.status!=200||!picojson::parse(out,reply.body).empty()||!out.is<picojson::object>())return false;
+    const auto& error=Field(out,"error");
+    // /v2/servers uses the string "false"; player responses also use a JSON bool.
+    // Missing, true, numeric and other string values must still fail closed.
+    return (error.is<bool>()&&!error.get<bool>())||(error.is<std::string>()&&error.get<std::string>()=="false");
+}
 std::shared_ptr<const std::vector<unsigned char>> Font(){
     wchar_t windows[MAX_PATH]{};if(!GetWindowsDirectoryW(windows,MAX_PATH))return {};
     for(const auto* name:{L"msyh.ttc",L"msyh.ttf",L"simhei.ttf"}){
@@ -144,7 +150,10 @@ void Service::Run(){
                         s.players=static_cast<unsigned>(std::min(Id(Field(row,"players")),1000000ull));s.capacity=static_cast<unsigned>(std::min(Id(Field(row,"maxplayers")),1000000ull));s.queue=static_cast<unsigned>(std::min(Id(Field(row,"queue")),1000000ull));
                         const auto& online=Field(row,"online");s.online=online.is<bool>()&&online.get<bool>();if(s.id&&!s.name.empty())data.servers.push_back(s);
                     }data.serverTick=tick;data.serverMessage="公开服务器资料已更新";
-                }else data.serverMessage=reply.status==429?"API 限频，稍后重试":"服务器查询失败；旧资料可能过期";
+                }else if(reply.status==429)data.serverMessage="API 限频，稍后重试";
+                else if(reply.status==200)data.serverMessage="服务器接口返回错误或不兼容数据；旧资料可能过期";
+                else if(!reply.status)data.serverMessage="服务器请求未完成，请检查网络；旧资料可能过期";
+                else data.serverMessage="服务器查询失败（HTTP "+std::to_string(reply.status)+"）；旧资料可能过期";
             }else{
                 auto& p=data.profiles[id];queued.erase(id);p.id=id;p.tick=tick;p.next=reply.status==429?nextRequest:tick+60000;
                 auto name=Text(Field(response,"name"));const auto& vtc=Field(response,"vtc");const auto& in=Field(vtc,"inVTC");auto vtcId=Id(Field(vtc,"id"));auto vtcName=Text(Field(vtc,"name"));

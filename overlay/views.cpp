@@ -191,7 +191,7 @@ void Runtime::ProfilePage(){
     if(server)Label(std::to_string(server->players)+" / "+std::to_string(server->capacity)+" 在线 · 排队 "+std::to_string(server->queue));
     if(data_){Dim(data_->serverMessage);if(data_->serverTick)Dim("缓存 "+std::to_string((GetTickCount64()-data_->serverTick)/1000)+" 秒前更新");}
     ImGui::Spacing();Dim("VTC 约缓存 15 分钟，服务器约每分钟更新。");
-    ImGui::Separator();Dim("Truck Companion Overlay 0.2.4 · RainySY");if(ImGui::Button("作者 GitHub"))service_->OpenAuthor();
+    ImGui::Separator();Dim("Truck Companion Overlay 0.2.5 · RainySY");if(ImGui::Button("作者 GitHub"))service_->OpenAuthor();
 }
 void Runtime::SettingsPage(){
     Label("面板设置");Dim("仅修改本面板；不会改动游戏或 TMP 配置。");

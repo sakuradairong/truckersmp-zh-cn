@@ -1,8 +1,16 @@
-# Truck Companion Overlay 0.2.4
+# Truck Companion Overlay 0.2.5
 
 游戏进程内自绘面板，作者 RainySY（[sakuradairong](https://github.com/sakuradairong)）。适用于 Windows x64、TruckersMP 的 DirectX 11 渲染模式。
 
 `TruckCompanionOverlay.dll` 同时提供 SCS 遥测和 TMP 官方 SDK 入口，由游戏插件系统加载。游戏完成自身的 SDK 提示确认、初始化插件并提供有效绘图帧后，面板默认显示为只读驾驶模式；不需要打开面板 EXE，也不需要另一个注入器或后台监控程序。
+
+## 0.2.5 服务器名称修复
+
+修复已连接后仍显示“服务器 #4 / 服务器查询失败”的问题。2026-11-03 读取官方 `/v2/servers` 时，成功响应的 `error` 字段是字符串 `"false"`；旧解析器只接受布尔值 `false`，导致正常服务器列表被丢弃。新版兼容这两种明确的成功表示，仍拒绝 `true`、字段缺失、数值及其他字符串。独立面板的同类解析也已修正。
+
+服务器 ID 继续由官方 Network SDK 提供，名称按 ID 匹配公开服务器列表，不硬编码 `4 → Simulation 1`。查询失败时区分限频、HTTP 状态、请求未完成与响应数据问题，便于定位。当前官方列表和用户原版 TAB 截图均确认 ID 4 对应 Simulation 1。
+
+包含以下右键、快捷键、ID 冲突和退出清理修复。交付仅做源码检查、编译和打包；没有执行测试、烟测、SHA 校验或游戏内验收。
 
 ## 0.2.4 操作与快捷键
 

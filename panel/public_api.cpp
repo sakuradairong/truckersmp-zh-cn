@@ -33,7 +33,8 @@ std::uint64_t Integer(const picojson::value& v){
 }
 std::wstring Text(const picojson::value& v){if(!v.is<std::string>())return {};const auto& s=v.get<std::string>();return s.size()<=1024?Wide(s):L"";}
 bool Good(const Reply& r,picojson::value& v){if(r.status!=200||!picojson::parse(v,r.body).empty()||!v.is<picojson::object>())return false;
-    auto& error=Field(v,"error");return error.is<bool>()&&!error.get<bool>();}
+    // The servers endpoint returns "false" as a string; accept only explicit success.
+    const auto& error=Field(v,"error");return (error.is<bool>()&&!error.get<bool>())||(error.is<std::string>()&&error.get<std::string>()=="false");}
 }
 PublicApi::PublicApi():thread_([this]{Run();}){}
 PublicApi::~PublicApi(){{std::lock_guard<std::mutex> guard(mutex_);stop_=true;}wake_.notify_all();if(thread_.joinable())thread_.join();}
@@ -75,7 +76,10 @@ void PublicApi::Run(){
                         s.capacity=static_cast<unsigned>((std::min)(Integer(Field(row,"maxplayers")),1000000ull));s.queue=static_cast<unsigned>((std::min)(Integer(Field(row,"queue")),1000000ull));
                         const auto& online=Field(row,"online");s.online=online.is<bool>()&&online.get<bool>();if(s.id&&!s.name.empty())servers_.push_back(s);
                     }serverTick_=now;serverMessage_=L"服务器公开资料已更新";
-                }else serverMessage_=reply.status==429?L"服务器查询限频，稍后重试":L"服务器资料查询失败；已有资料可能过期";
+                }else if(reply.status==429)serverMessage_=L"服务器查询限频，稍后重试";
+                else if(reply.status==200)serverMessage_=L"服务器接口返回错误或不兼容数据；已有资料可能过期";
+                else if(!reply.status)serverMessage_=L"服务器请求未完成，请检查网络；已有资料可能过期";
+                else serverMessage_=L"服务器查询失败（HTTP "+std::to_wstring(reply.status)+L"）；已有资料可能过期";
             }else{
                 auto& p=profiles_[id];p.id=id;p.queued=false;p.tick=now;p.next=now+60000;
                 const auto& row=Field(data,"response");
