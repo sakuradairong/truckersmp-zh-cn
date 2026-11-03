@@ -9,7 +9,7 @@ if(!(Test-Path -LiteralPath (Join-Path $scsSdk 'scssdk_telemetry.h') -PathType L
 $stage=Join-Path $project ('dist\companion-overlay\0.2.5-'+[Guid]::NewGuid().ToString('N'))
 foreach($dir in @($stage,(Join-Path $stage 'licenses'),(Join-Path $stage 'licenses\scs'))){New-Item -ItemType Directory -Path $dir -Force | Out-Null}
 Copy-Item -LiteralPath $dll -Destination $stage
-foreach($name in @('README.md','FREIGHT-RESEARCH.md','FREIGHT-DEEP-DIVE.md','install.ps1')){Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination $stage}
+foreach($name in @('README.md','FREIGHT-RESEARCH.md','FREIGHT-DEEP-DIVE.md','FREIGHT-INTEGRATION-OPTIONS.md','install.ps1')){Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination $stage}
 Copy-Item -LiteralPath (Join-Path $project 'vendor\imgui-1.92.9\LICENSE.txt') -Destination (Join-Path $stage 'licenses\imgui.txt')
 Copy-Item -LiteralPath (Join-Path $project 'vendor\imgui-1.92.9\COMPANION-NOTES.md') -Destination (Join-Path $stage 'licenses\imgui-local-changes.md')
 Copy-Item -LiteralPath (Join-Path $project 'vendor\tmp-sdk\LICENSE') -Destination (Join-Path $stage 'licenses\truckersmp-sdk.txt')

@@ -13,7 +13,7 @@ The new panels and freight research are maintained in this repository. The origi
 | [In-game DLL](overlay/README.md) | **Truck Companion Overlay 0.2.5** | Public TMP Render/Input SDK with Dear ImGui; nearby players, own speed, profile/VTC, current job, and settings |
 | [Standalone Windows panel](panel/README.md) | **Truck Companion Panel 0.1.0** | Separate EXE with SCS and optional TMP collectors, retained as a fallback mode |
 
-Version 0.2.5 accepts the server API's string "false" success marker, fixing the server-ID-only display. It includes the earlier right-click, shortcut recording, ImGui ID and platform-backend teardown fixes. Compilation is not in-game acceptance. Freight creation and direct pickup remain [research](overlay/FREIGHT-DEEP-DIVE.md); the current freight page only displays job information.
+Version 0.2.5 accepts the server API's string "false" success marker, fixing the server-ID-only display. It includes the earlier right-click, shortcut recording, ImGui ID and platform-backend teardown fixes. Compilation is not in-game acceptance. Freight creation and direct pickup remain [research](overlay/FREIGHT-INTEGRATION-OPTIONS.md); the current freight page only displays job information.
 
 Supply an external [SCS SDK](https://download.eurotrucksimulator2.com/scs_sdk_1_16.zip) include directory, then use these separate entry points:
 
