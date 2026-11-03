@@ -1,8 +1,14 @@
-# Truck Companion Overlay 0.2.2
+# Truck Companion Overlay 0.2.3
 
 游戏进程内自绘面板，作者 RainySY（[sakuradairong](https://github.com/sakuradairong)）。适用于 Windows x64、TruckersMP 的 DirectX 11 渲染模式。
 
 `TruckCompanionOverlay.dll` 同时提供 SCS 遥测和 TMP 官方 SDK 入口，由游戏插件系统加载。游戏完成自身的 SDK 提示确认、初始化插件并提供有效绘图帧后，面板默认显示为只读驾驶模式；不需要打开面板 EXE，也不需要另一个注入器或后台监控程序。
+
+## 0.2.3 修复
+
+修复“附近”页的 `2 visible items with conflicting ID` 提示：上方“关注”筛选与下方玩家“关注”按钮曾处于同一 ImGui ID 作用域，显示文字相同导致控件冲突。筛选组、玩家操作和底部导航现使用独立作用域，各内容页也分别隔离。玩家操作使用完整 TMP 账号区分目标，“关注/取消关注”共用稳定的隐藏操作标识，避免文字变化影响控件身份。
+
+保留 ImGui 冲突诊断和断言；界面文字、布局和本机关注数据不变。0.2.3 包含以下 0.2.2 后端清理修复。本次交付仅做源码检查和编译打包，没有执行测试、烟测、SHA 校验或游戏内复现；安装与实机交互验收需另行进行。
 
 ## 0.2.2 修复
 

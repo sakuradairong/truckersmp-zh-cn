@@ -62,15 +62,19 @@ void Runtime::Draw(){
         ImGui::Separator();
         const float footer=ImGui::GetFrameHeightWithSpacing()+ImGui::GetTextLineHeightWithSpacing()+ImGui::GetStyle().ItemSpacing.y*2+1;
         if(ImGui::BeginChild("Content",{0,std::max(1.f,ImGui::GetContentRegionAvail().y-footer)},ImGuiChildFlags_None)){
+            ImGui::PushID(page_);
             switch(page_){case 0:Nearby();break;case 1:Truck();break;case 2:Freight();break;case 3:ProfilePage();break;case 4:SettingsPage();break;default:page_=0;break;}
+            ImGui::PopID();
         }ImGui::EndChild();
         ImGui::Separator();
         ImGui::BeginDisabled(!editing_);
         const char* pages[]={"附近","本车","货运","资料","设置"};
         const float driveWidth=ImGui::CalcTextSize("返回驾驶").x+ImGui::GetStyle().FramePadding.x*2;
         const float navWidth=std::max(1.f,(ImGui::GetContentRegionAvail().x-driveWidth-gap*5)/5);
-        for(int i=0;i<5;++i){if(i)ImGui::SameLine();if(Nav(pages[i],page_==i,navWidth)){if(i==4&&page_!=4)Draft();page_=i;}}
+        ImGui::PushID("PageNavigation");
+        for(int i=0;i<5;++i){if(i)ImGui::SameLine();ImGui::PushID(i);if(Nav(pages[i],page_==i,navWidth)){if(i==4&&page_!=4)Draft();page_=i;}ImGui::PopID();}
         ImGui::SameLine();if(ImGui::Button("返回驾驶",{driveWidth,0}))requestMode_=true;
+        ImGui::PopID();
         ImGui::EndDisabled();
         std::string hint=companion::Utf8(companion::KeyText(settings_.edit))+" 编辑/驾驶 · "+companion::Utf8(companion::KeyText(settings_.visible))+" 显示/隐藏";
         if(editing_)hint="编辑中 · ESC 返回驾驶";
@@ -85,7 +89,10 @@ void Runtime::Nearby(){
     ImGui::SetNextItemWidth(std::max(1.f,ImGui::GetContentRegionAvail().x-sortWidth-gap));ImGui::InputTextWithHint("##Search","搜索玩家 / ID / 标签",search_,sizeof search_);
     ImGui::SameLine();ImGui::SetNextItemWidth(sortWidth);ImGui::Combo("##Sort",&sort_,orders,3);
     float filterWidth=(ImGui::GetContentRegionAvail().x-gap*3)/4;
-    for(int i=0;i<4;++i){if(i)ImGui::SameLine();if(Nav(filters[i],filter_==i,filterWidth))filter_=i;}
+    // Visible filter labels may also appear in selected-player actions.
+    ImGui::PushID("NearbyFilters");
+    for(int i=0;i<4;++i){if(i)ImGui::SameLine();ImGui::PushID(i);if(Nav(filters[i],filter_==i,filterWidth))filter_=i;ImGui::PopID();}
+    ImGui::PopID();
     if(ImGui::IsItemHovered())ImGui::SetTooltip("团队成员指 TruckersMP 工作人员；同车队按正式 VTC 匹配。");
     const auto& world=players_.Read();std::vector<const companion::Player*> rows;unsigned stale=0,pending=0;
     auto mine=ProfileFor(Account());if(filter_==2)Request(Account(),true);
@@ -139,8 +146,12 @@ void Runtime::Selected(){
     auto profile=ProfileFor(player->account);Request(player->account,true);Fit(Clean(player->name)+" · TMP "+std::to_string(player->account),ImGui::GetContentRegionAvail().x);
     Fit(profile&&Current(*profile)?profile->vtcName:Status(profile),ImGui::GetContentRegionAvail().x);
     if(player->account){bool favorite=settings_.favorites.count(player->account)!=0;
-        if(ImGui::Button(favorite?"取消关注":"关注")){if(favorite)settings_.favorites.erase(player->account);else if(settings_.favorites.size()<512)settings_.favorites.insert(player->account);else message_="关注列表上限为 512 人。";MarkDirty();}
-        ImGui::SameLine();if(ImGui::Button("公开主页"))service_->OpenProfile(player->account);
+        ImGui::PushID("SelectedPlayerActions");
+        const auto accountId=std::to_string(player->account);ImGui::PushID(accountId.c_str());
+        // Keep the toggle identity stable when its visible label changes.
+        if(ImGui::Button(favorite?"取消关注###ToggleFavorite":"关注###ToggleFavorite")){if(favorite)settings_.favorites.erase(player->account);else if(settings_.favorites.size()<512)settings_.favorites.insert(player->account);else message_="关注列表上限为 512 人。";MarkDirty();}
+        ImGui::SameLine();if(ImGui::Button("公开主页###OpenProfile"))service_->OpenProfile(player->account);
+        ImGui::PopID();ImGui::PopID();
     }
 }
 void Runtime::Truck(){
@@ -181,7 +192,7 @@ void Runtime::ProfilePage(){
     if(server)Label(std::to_string(server->players)+" / "+std::to_string(server->capacity)+" 在线 · 排队 "+std::to_string(server->queue));
     if(data_){Dim(data_->serverMessage);if(data_->serverTick)Dim("缓存 "+std::to_string((GetTickCount64()-data_->serverTick)/1000)+" 秒前更新");}
     ImGui::Spacing();Dim("VTC 约缓存 15 分钟，服务器约每分钟更新。");
-    ImGui::Separator();Dim("Truck Companion Overlay 0.2.2 · RainySY");if(ImGui::Button("作者 GitHub"))service_->OpenAuthor();
+    ImGui::Separator();Dim("Truck Companion Overlay 0.2.3 · RainySY");if(ImGui::Button("作者 GitHub"))service_->OpenAuthor();
 }
 void Runtime::SettingsPage(){
     Label("面板设置");Dim("仅修改本面板；不会改动游戏或 TMP 配置。");

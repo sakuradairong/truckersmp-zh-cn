@@ -38,7 +38,7 @@ bool Runtime::Start(){
     session_.Input().OnMouseButton.Register([this](auto& event){try{if(!stopped_)MouseButton(event);}catch(...){LeaveEdit();}});
     session_.Input().OnMouseWheel.Register([this](auto& event){try{if(!stopped_)MouseWheel(event);}catch(...){LeaveEdit();}});
     session_.Render().OnPostRender.Register([this]{if(stopped_)return;try{Frame();}catch(...){LeaveEdit();renderer_.Reset();message_="绘图已暂停，可按显示热键重新打开。";shown_=false;}});
-    session_.Core().LogMessage(TruckersMP::LogLevel::Info,"Truck Companion Overlay 0.2.2 initialized; UI appears on the first usable DX11 SDK frame.");
+    session_.Core().LogMessage(TruckersMP::LogLevel::Info,"Truck Companion Overlay 0.2.3 initialized; UI appears on the first usable DX11 SDK frame.");
     return true;
 }
 bool Runtime::Matches(const companion::Hotkey& key,unsigned pressed) const {

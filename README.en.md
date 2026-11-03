@@ -10,10 +10,10 @@ The new panels and freight research are maintained in this repository. The origi
 
 | Target | Source version | Description |
 | --- | --- | --- |
-| [In-game DLL](overlay/README.md) | **Truck Companion Overlay 0.2.2** | Public TMP Render/Input SDK with Dear ImGui; nearby players, own speed, profile/VTC, current job, and settings |
+| [In-game DLL](overlay/README.md) | **Truck Companion Overlay 0.2.3** | Public TMP Render/Input SDK with Dear ImGui; nearby players, own speed, profile/VTC, current job, and settings |
 | [Standalone Windows panel](panel/README.md) | **Truck Companion Panel 0.1.0** | Separate EXE with SCS and optional TMP collectors, retained as a fallback mode |
 
-Version 0.2.2 fixes the missing ImGui platform-backend teardown that caused a context-destruction assertion. Compilation is not in-game acceptance. Freight creation and direct pickup remain [research](overlay/FREIGHT-DEEP-DIVE.md); the current freight page only displays job information.
+Version 0.2.3 fixes the ImGui ID collision between the favorites filter and the selected player's follow action, and includes the platform-backend teardown fix from 0.2.2. Compilation is not in-game acceptance. Freight creation and direct pickup remain [research](overlay/FREIGHT-DEEP-DIVE.md); the current freight page only displays job information.
 
 Supply an external [SCS SDK](https://download.eurotrucksimulator2.com/scs_sdk_1_16.zip) include directory, then use these separate entry points:
 

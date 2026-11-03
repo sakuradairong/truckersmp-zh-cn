@@ -10,10 +10,10 @@
 
 | 方案 | 当前源码版本 | 说明 |
 | --- | --- | --- |
-| [游戏内 DLL 面板](overlay/README.md) | **Truck Companion Overlay 0.2.2** | TMP 官方 Render/Input SDK + Dear ImGui 自绘，支持附近玩家、本车速度、资料/VTC、当前任务及设置 |
+| [游戏内 DLL 面板](overlay/README.md) | **Truck Companion Overlay 0.2.3** | TMP 官方 Render/Input SDK + Dear ImGui 自绘，支持附近玩家、本车速度、资料/VTC、当前任务及设置 |
 | [独立 Windows 悬浮面板](panel/README.md) | **Truck Companion Panel 0.1.0** | 独立 EXE，SCS 采集与可选 TMP SDK 采集；保留作可回退模式 |
 
-0.2.2 包含 ImGui 平台后端清理修复，解决销毁上下文时的断言条件。源码编译不代表游戏内修复验收。货运页目前只展示任务，生成与现场接取仍处于[深入研究](overlay/FREIGHT-DEEP-DIVE.md)阶段；另见[迁移设计](panel/INPROCESS-OVERLAY-RESEARCH.md)。
+0.2.3 修复“关注”筛选与玩家操作的 ImGui ID 冲突，并包含 0.2.2 的平台后端清理修复。源码编译不代表游戏内修复验收。货运页目前只展示任务，生成与现场接取仍处于[深入研究](overlay/FREIGHT-DEEP-DIVE.md)阶段；另见[迁移设计](panel/INPROCESS-OVERLAY-RESEARCH.md)。
 
 面板有独立的编译与打包入口，不调用下面的原生汉化构建链。准备外部 [SCS SDK](https://download.eurotrucksimulator2.com/scs_sdk_1_16.zip) 的 include 目录后运行：
 
