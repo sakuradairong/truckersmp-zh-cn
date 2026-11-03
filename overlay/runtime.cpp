@@ -25,6 +25,8 @@ unsigned VirtualKey(const TruckersMP::InputKeyEvent& event){
     if(key==VK_CONTROL)return (event.GetFlags()&0x100)?VK_RCONTROL:VK_LCONTROL;
     if(key==VK_MENU)return (event.GetFlags()&0x100)?VK_RMENU:VK_LMENU;return key;
 }
+bool GameForeground(){DWORD pid=0;GetWindowThreadProcessId(GetForegroundWindow(),&pid);return pid==GetCurrentProcessId();}
+bool ModifierKey(unsigned key){return key==VK_LCONTROL||key==VK_RCONTROL||key==VK_LSHIFT||key==VK_RSHIFT||key==VK_LMENU||key==VK_RMENU||key==VK_LWIN||key==VK_RWIN;}
 }
 bool Runtime::Start(){
     service_=Service::Start();if(!service_)return false;players_.Reset();
@@ -38,30 +40,65 @@ bool Runtime::Start(){
     session_.Input().OnMouseButton.Register([this](auto& event){try{if(!stopped_)MouseButton(event);}catch(...){LeaveEdit();}});
     session_.Input().OnMouseWheel.Register([this](auto& event){try{if(!stopped_)MouseWheel(event);}catch(...){LeaveEdit();}});
     session_.Render().OnPostRender.Register([this]{if(stopped_)return;try{Frame();}catch(...){LeaveEdit();renderer_.Reset();message_="绘图已暂停，可按显示热键重新打开。";shown_=false;}});
-    session_.Core().LogMessage(TruckersMP::LogLevel::Info,"Truck Companion Overlay 0.2.3 initialized; UI appears on the first usable DX11 SDK frame.");
+    session_.Core().LogMessage(TruckersMP::LogLevel::Info,"Truck Companion Overlay 0.2.4 initialized; UI appears on the first usable DX11 SDK frame.");
     return true;
 }
-bool Runtime::Matches(const companion::Hotkey& key,unsigned pressed) const {
+unsigned Runtime::Modifiers() const {
     unsigned modifiers=0;if(keys_[VK_LCONTROL]||keys_[VK_RCONTROL])modifiers|=MOD_CONTROL;if(keys_[VK_LSHIFT]||keys_[VK_RSHIFT])modifiers|=MOD_SHIFT;if(keys_[VK_LMENU]||keys_[VK_RMENU])modifiers|=MOD_ALT;
-    return key.key==pressed&&key.modifiers==modifiers;
+    if(keys_[VK_LWIN]||keys_[VK_RWIN])modifiers|=MOD_WIN;return modifiers;
+}
+bool Runtime::Matches(const companion::Hotkey& key,unsigned pressed) const {return key.key==pressed&&key.modifiers==Modifiers();}
+void Runtime::BeginKeyCapture(int target){
+    recordingKey_=target;recordingError_.clear();settingsMessage_.clear();
+    if(renderer_.Context()){ContextScope scope(renderer_.Context());ImGui::GetIO().ClearInputKeys();}
+}
+void Runtime::EndKeyCapture(){
+    if(recordingKey_)suppressKeysUntilRelease_=std::any_of(keys_.begin(),keys_.end(),[](bool down){return down;});
+    recordingKey_=0;recordingError_.clear();
+    if(renderer_.Context()){ContextScope scope(renderer_.Context());ImGui::GetIO().ClearInputKeys();}
+}
+void Runtime::CaptureKey(unsigned key,bool edge){
+    if(!edge)return;
+    if(key==VK_ESCAPE){EndKeyCapture();settingsMessage_="已取消录制，原快捷键保留。";return;}
+    if(ModifierKey(key))return;
+    companion::Hotkey next{Modifiers(),key};
+    if(!companion::ValidHotkey(next,true)){recordingError_="请选择字母、数字、F1–F24 或导航键；不支持 Windows 键和系统保留组合。";return;}
+    const auto other=recordingKey_==1?draft_.edit:draft_.visible;
+    if(next.key==other.key&&next.modifiers==other.modifiers){recordingError_="两个操作不能使用同一个快捷键，请重新按键。";return;}
+    if(recordingKey_==1)draft_.visible=next;else draft_.edit=next;
+    EndKeyCapture();settingsMessage_="已录制；点击“应用并保存”后生效。";
 }
 void Runtime::Key(TruckersMP::InputKeyEvent& event){
+    if(!GameForeground()){LeaveEdit();keys_.fill(false);rightToggleHeld_=suppressKeysUntilRelease_=false;return;}
+    if(!ready_){keys_.fill(false);return;}
     unsigned key=VirtualKey(event);if(key>=keys_.size())return;bool edge=event.GetDown()&&!keys_[key];keys_[key]=event.GetDown();
-    if(edge&&Matches(settings_.visible,key)){shown_=!shown_;if(!shown_)LeaveEdit();return;}
-    if(edge&&Matches(settings_.edit,key)){if(editing_)LeaveEdit();else{shown_=true;EnterEdit();}return;}
+    if(recordingKey_){CaptureKey(key,edge);return;}
+    if(suppressKeysUntilRelease_){suppressKeysUntilRelease_=std::any_of(keys_.begin(),keys_.end(),[](bool down){return down;});return;}
     if(edge&&key==VK_ESCAPE&&editing_){LeaveEdit();return;}
+    bool typing=false;if(editing_&&renderer_.Context()){ContextScope scope(renderer_.Context());typing=ImGui::GetIO().WantTextInput;}
+    if(!typing&&edge&&Matches(settings_.visible,key)){shown_=!shown_;if(!shown_)LeaveEdit();return;}
+    if(!typing&&edge&&Matches(settings_.edit,key)){if(editing_)LeaveEdit();else{shown_=true;EnterEdit();}return;}
     if(!editing_||!renderer_.Context())return;ContextScope scope(renderer_.Context());auto& io=ImGui::GetIO();
     io.AddKeyEvent(ImGuiMod_Ctrl,keys_[VK_LCONTROL]||keys_[VK_RCONTROL]);io.AddKeyEvent(ImGuiMod_Shift,keys_[VK_LSHIFT]||keys_[VK_RSHIFT]);io.AddKeyEvent(ImGuiMod_Alt,keys_[VK_LMENU]||keys_[VK_RMENU]);io.AddKeyEvent(ImGuiMod_Super,keys_[VK_LWIN]||keys_[VK_RWIN]);
     auto mapped=GuiKey(key);if(key==VK_RETURN&&(event.GetFlags()&0x100))mapped=ImGuiKey_KeypadEnter;
     if(mapped!=ImGuiKey_None)io.AddKeyEvent(mapped,event.GetDown());
 }
 void Runtime::Character(TruckersMP::InputCharEvent& event){
-    if(!editing_||!renderer_.Context())return;auto c=event.GetCharacter();if(c<32||c>0x10ffff||(c>=0xd800&&c<=0xdfff))return;
+    if(!editing_||!renderer_.Context()||recordingKey_||suppressKeysUntilRelease_)return;auto c=event.GetCharacter();if(c<32||c>0x10ffff||(c>=0xd800&&c<=0xdfff))return;
     ContextScope scope(renderer_.Context());ImGui::GetIO().AddInputCharacter(c);
 }
 void Runtime::MouseMove(TruckersMP::InputMouseMoveEvent& event){if(!editing_||!renderer_.Context())return;ContextScope scope(renderer_.Context());auto p=renderer_.Mouse(event.GetX(),event.GetY());ImGui::GetIO().AddMousePosEvent(p.x,p.y);}
 void Runtime::MouseButton(TruckersMP::InputMouseButtonEvent& event){
+    if(event.GetButton()==TruckersMP::MouseButton::Right){
+        // Consume the complete click, including release after leaving edit mode.
+        if(rightToggleHeld_){event.SetBlock(true);if(!event.GetDown())rightToggleHeld_=false;return;}
+        if(event.GetDown()&&!event.GetBlock()&&ready_&&shown_&&renderer_.Focused()){
+            bool changed=editing_;if(editing_)LeaveEdit();else changed=EnterEdit();
+            if(changed){rightToggleHeld_=true;event.SetBlock(true);}return;
+        }
+    }
     if(!editing_||!renderer_.Context())return;int button=-1;switch(event.GetButton()){case TruckersMP::MouseButton::Left:button=0;break;case TruckersMP::MouseButton::Right:button=1;break;case TruckersMP::MouseButton::Middle:button=2;break;default:return;}
+    if(event.GetBlock()&&!captured_[button])return;
     ContextScope scope(renderer_.Context());auto& io=ImGui::GetIO();auto p=io.MousePos;
     bool inside=p.x>=boundsMin_.x&&p.x<=boundsMax_.x&&p.y>=boundsMin_.y&&p.y<=boundsMax_.y;
     if(inside||io.WantCaptureMouse||captured_[button]){event.SetBlock(true);captured_[button]=event.GetDown();}
@@ -70,8 +107,8 @@ void Runtime::MouseButton(TruckersMP::InputMouseButtonEvent& event){
 void Runtime::MouseWheel(TruckersMP::InputMouseWheelEvent& event){if(!editing_||!renderer_.Context())return;ContextScope scope(renderer_.Context());ImGui::GetIO().AddMouseWheelEvent(0,static_cast<float>(event.GetDelta()));}
 bool Runtime::EnterEdit(){
     if(editing_)return true;if(!renderer_.Context()||!renderer_.Focused()){message_="等待游戏窗口和绘图就绪后，再进入编辑。";return false;}
-    const auto mouse=session_.Input().IsGameMouseLocked(),keyboard=session_.Input().IsGameKeyboardLocked();
-    if(!mouse||!keyboard||*mouse||*keyboard){message_="请先关闭占用输入的游戏/TMP 界面，再进入编辑。";return false;}
+    const auto mouse=session_.Input().IsGameMouseLocked(),keyboard=session_.Input().IsGameKeyboardLocked(),cursor=session_.Input().IsMouseVisible();
+    if(!mouse||!keyboard||!cursor||*mouse||*keyboard||*cursor){message_="请先关闭占用输入的游戏/TMP 界面，再右键操作。";return false;}
     using TruckersMP::Result;
     if(session_.Input().IncreaseMouseRef()!=Result::Ok){message_="暂时无法取得鼠标。";return false;}cursor_=true;
     if(session_.Input().SetGameMouseLocked(true)!=Result::Ok){LeaveEdit();return false;}mouseLock_=true;
@@ -79,6 +116,7 @@ bool Runtime::EnterEdit(){
     editing_=true;renderer_.ImeEditing(true);ContextScope scope(renderer_.Context());auto& io=ImGui::GetIO();io.ClearInputKeys();io.ClearInputMouse();io.AddFocusEvent(true);message_.clear();return true;
 }
 void Runtime::LeaveEdit(){
+    EndKeyCapture();
     editing_=false;requestMode_=false;renderer_.ImeEditing(false);captured_.fill(false);
     using TruckersMP::Result;
     if(keyLock_&&session_.Input().SetGameKeyboardLocked(false)==Result::Ok)keyLock_=false;
@@ -95,7 +133,7 @@ void Runtime::Frame(){
     if(!ready_)return;
     if(dirty_&&now>=nextSave_){nextSave_=now+300;if(service_->Save(settings_,saveSerial_))dirty_=false;}
     if(!editing_&&(cursor_||mouseLock_||keyLock_))LeaveEdit();
-    if(renderer_.Context()&&!renderer_.Focused()){LeaveEdit();keys_.fill(false);}
+    if(renderer_.Context()&&!renderer_.Focused()){LeaveEdit();keys_.fill(false);rightToggleHeld_=suppressKeysUntilRelease_=false;}
     if(!shown_)return;
     if(session_.Render().GetRendererID()!=TruckersMP::RendererID::DirectX11){
         if(!rendererWarning_){session_.Core().LogMessage(TruckersMP::LogLevel::Warning,"Overlay requires the official SDK DirectX11 renderer; drawing is suspended.");rendererWarning_=true;}
@@ -106,7 +144,7 @@ void Runtime::Frame(){
     if(renderer_.Generation()!=rendererGeneration_){rendererGeneration_=renderer_.Generation();if(editing_)LeaveEdit();lastWidth_=lastHeight_=0;}
     {
         ContextScope scope(renderer_.Context());bool focus=renderer_.Focused();ImGui::GetIO().AddFocusEvent(focus);
-        if(!focus){LeaveEdit();keys_.fill(false);}
+        if(!focus){LeaveEdit();keys_.fill(false);rightToggleHeld_=suppressKeysUntilRelease_=false;}
         allowRequests_=now>=nextOffer_;if(allowRequests_)nextOffer_=now+250;
         Draw();
     }

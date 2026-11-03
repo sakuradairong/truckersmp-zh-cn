@@ -26,7 +26,7 @@ bool Runtime::WorldLive() const {const auto& w=players_.Read();return w.active&&
 std::uint64_t Runtime::Account() const {return settings_.account?settings_.account:players_.Read().account;}
 const Profile* Runtime::ProfileFor(std::uint64_t id) const {if(!data_)return nullptr;auto i=data_->profiles.find(id);return i==data_->profiles.end()?nullptr:&i->second;}
 void Runtime::Request(std::uint64_t id,bool priority){if(allowRequests_&&id)service_->Request(id,priority);}
-void Runtime::Draft(){draft_=settings_;sprintf_s(accountText_,"%llu",static_cast<unsigned long long>(draft_.account));strncpy_s(visibleKey_,companion::Utf8(companion::KeyText(draft_.visible)).c_str(),_TRUNCATE);strncpy_s(editKey_,companion::Utf8(companion::KeyText(draft_.edit)).c_str(),_TRUNCATE);}
+void Runtime::Draft(){draft_=settings_;sprintf_s(accountText_,"%llu",static_cast<unsigned long long>(draft_.account));settingsMessage_.clear();}
 void Runtime::Draw(){
     const float width=renderer_.Width(),height=renderer_.Height();const float scale=std::clamp(height/1080.f,.8f,1.8f);
     const float desiredWidth=std::min(settings_.width*scale,width-16),desiredHeight=std::min(settings_.height*scale,height-16);
@@ -76,9 +76,8 @@ void Runtime::Draw(){
         ImGui::SameLine();if(ImGui::Button("返回驾驶",{driveWidth,0}))requestMode_=true;
         ImGui::PopID();
         ImGui::EndDisabled();
-        std::string hint=companion::Utf8(companion::KeyText(settings_.edit))+" 编辑/驾驶 · "+companion::Utf8(companion::KeyText(settings_.visible))+" 显示/隐藏";
-        if(editing_)hint="编辑中 · ESC 返回驾驶";
-        if(!message_.empty())hint=message_;else if(data_&&!data_->message.empty())hint+=" · "+data_->message;
+        std::string hint=std::string(editing_?"右键 / ESC 返回驾驶 · ":"右键操作 · ")+companion::Utf8(companion::KeyText(settings_.visible))+" 显示/隐藏";
+        if(!message_.empty())hint+=" · "+message_;else if(data_&&!data_->message.empty())hint+=" · "+data_->message;
         ImGui::PushStyleColor(ImGuiCol_Text,ImVec4(.68f,.68f,.68f,1));Fit(hint,ImGui::GetContentRegionAvail().x);ImGui::PopStyleColor();
     }
     ImGui::End();shown_=open;
@@ -142,7 +141,7 @@ void Runtime::Nearby(){
 void Runtime::Selected(){
     ImGui::Separator();const companion::Player* player=nullptr;const auto& world=players_.Read();
     if(WorldLive())for(unsigned i=0;i<world.count;++i){const auto& p=world.players[i];if(p.id==selected_&&p.account==selectedAccount_&&companion::Fresh(GetTickCount64(),p.tick)){player=&p;break;}}
-    if(!player){Dim("编辑模式点击玩家，查看车队和关注。");Dim("附近为本机已加载范围；关注保存在本机。");return;}
+    if(!player){Dim("右键进入操作，再点击玩家查看车队和关注。");Dim("附近为本机已加载范围；关注保存在本机。");return;}
     auto profile=ProfileFor(player->account);Request(player->account,true);Fit(Clean(player->name)+" · TMP "+std::to_string(player->account),ImGui::GetContentRegionAvail().x);
     Fit(profile&&Current(*profile)?profile->vtcName:Status(profile),ImGui::GetContentRegionAvail().x);
     if(player->account){bool favorite=settings_.favorites.count(player->account)!=0;
@@ -192,7 +191,7 @@ void Runtime::ProfilePage(){
     if(server)Label(std::to_string(server->players)+" / "+std::to_string(server->capacity)+" 在线 · 排队 "+std::to_string(server->queue));
     if(data_){Dim(data_->serverMessage);if(data_->serverTick)Dim("缓存 "+std::to_string((GetTickCount64()-data_->serverTick)/1000)+" 秒前更新");}
     ImGui::Spacing();Dim("VTC 约缓存 15 分钟，服务器约每分钟更新。");
-    ImGui::Separator();Dim("Truck Companion Overlay 0.2.3 · RainySY");if(ImGui::Button("作者 GitHub"))service_->OpenAuthor();
+    ImGui::Separator();Dim("Truck Companion Overlay 0.2.4 · RainySY");if(ImGui::Button("作者 GitHub"))service_->OpenAuthor();
 }
 void Runtime::SettingsPage(){
     Label("面板设置");Dim("仅修改本面板；不会改动游戏或 TMP 配置。");
@@ -202,20 +201,37 @@ void Runtime::SettingsPage(){
     ImGui::SliderInt("宽度",&draft_.width,430,900);ImGui::SliderInt("高度",&draft_.height,360,1200);
     if(ImGui::Button("紧凑布局 620 × 480")){draft_.width=620;draft_.height=480;}
     Dim("布局和字号在应用后生效，透明度和快捷键保留。");
-    ImGui::InputText("显示快捷键",visibleKey_,sizeof visibleKey_);ImGui::InputText("编辑快捷键",editKey_,sizeof editKey_);
-    Dim("示例 Ctrl+Shift+V / Alt+F8；仅在游戏内响应。");
-    if(ImGui::Button("应用并保存")){
-        bool valid=companion::ParseKey(companion::Wide(visibleKey_),draft_.visible)&&companion::ParseKey(companion::Wide(editKey_),draft_.edit);
-        if(draft_.visible.key==draft_.edit.key&&draft_.visible.modifiers==draft_.edit.modifiers)valid=false;
-        std::string id=accountText_;if(id.empty()||id.size()>20||id.find_first_not_of("0123456789")!=std::string::npos)valid=false;
-        else try{draft_.account=std::stoull(id);}catch(...){valid=false;}
-        if(valid){draft_.x=settings_.x;draft_.y=settings_.y;settings_=draft_;lastWidth_=lastHeight_=0;MarkDirty();message_="设置已提交后台保存。";page_=0;}
-        else message_="请检查账号和快捷键；两个快捷键不能相同。";
+    auto binding=[&](const char* label,const companion::Hotkey& key,int target,const char* id){
+        Dim(label);const auto text=companion::Utf8(companion::KeyText(key))+" · 点击录制###"+id;
+        if(ImGui::Button(text.c_str(),{-1,0})){BeginKeyCapture(target);ImGui::OpenPopup("录制快捷键###KeyCapture");}
+    };
+    binding("显示 / 隐藏面板",draft_.visible,1,"RecordVisible");
+    binding("操作 / 驾驶备用键（也可直接右键切换）",draft_.edit,2,"RecordEdit");
+    ImGui::TextWrapped("支持单键（如 F10、Insert）或 Ctrl / Shift / Alt 组合。请避开游戏和其他面板已使用的按键。");
+    if(ImGui::BeginPopupModal("录制快捷键###KeyCapture",nullptr,ImGuiWindowFlags_AlwaysAutoResize)){
+        if(!recordingKey_)ImGui::CloseCurrentPopup();
+        else{
+            Label(recordingKey_==1?"录制：显示 / 隐藏面板":"录制：操作 / 驾驶备用键");
+            Dim("请按下新按键或组合键；ESC 取消。");
+            Dim("录制期间原快捷键暂停；完成后点击“应用并保存”。");
+            if(!recordingError_.empty())ImGui::TextWrapped("%s",recordingError_.c_str());
+            if(ImGui::Button("取消录制")){EndKeyCapture();settingsMessage_="已取消录制，原快捷键保留。";ImGui::CloseCurrentPopup();}
+        }
+        ImGui::EndPopup();
     }
-    ImGui::SameLine();if(ImGui::Button("恢复默认快捷键")){strcpy_s(visibleKey_,"Ctrl+Shift+V");strcpy_s(editKey_,"Ctrl+Shift+E");}
+    if(!settingsMessage_.empty())ImGui::TextWrapped("%s",settingsMessage_.c_str());
+    if(ImGui::Button("应用并保存")){
+        settingsMessage_.clear();
+        if(!companion::ValidHotkey(draft_.visible,true)||!companion::ValidHotkey(draft_.edit,true))settingsMessage_="快捷键不可用，请重新录制。";
+        else if(draft_.visible.key==draft_.edit.key&&draft_.visible.modifiers==draft_.edit.modifiers)settingsMessage_="两个操作不能使用同一个快捷键。";
+        std::string id=accountText_;if(id.empty()||id.size()>20||id.find_first_not_of("0123456789")!=std::string::npos)settingsMessage_="TMP ID 只能填写数字，0 表示自动读取。";
+        else try{draft_.account=std::stoull(id);}catch(...){settingsMessage_="TMP ID 超出可用范围。";}
+        if(settingsMessage_.empty()){draft_.x=settings_.x;draft_.y=settings_.y;settings_=draft_;lastWidth_=lastHeight_=0;MarkDirty();message_="设置已提交后台保存。";page_=0;}
+    }
+    ImGui::SameLine();if(ImGui::Button("恢复默认快捷键")){draft_.visible={MOD_CONTROL|MOD_SHIFT,'V'};draft_.edit={MOD_CONTROL|MOD_SHIFT,'E'};settingsMessage_="默认键已填入；点击“应用并保存”后生效。";}
     if(ImGui::Button("重置面板位置")){settings_.x=settings_.y=INT_MIN;lastWidth_=lastHeight_=0;MarkDirty();}
     ImGui::EndDisabled();
     ImGui::Spacing();Dim(data_&&data_->savedSerial>=saveSerial_&&!dirty_?"当前设置已保存":"设置等待后台保存");
-    ImGui::TextWrapped("支持中文输入和系统候选框。显示或输入异常时，可用 ESC 退出编辑。");
+    ImGui::TextWrapped("输入文字时暂停面板快捷键，避免误触；右键或 ESC 仍可返回驾驶。支持中文输入和系统候选框。");
 }
 }

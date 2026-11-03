@@ -14,20 +14,40 @@ std::wstring Wide(const std::string& text){
 std::string Utf8(const std::wstring& text){int n=WideCharToMultiByte(CP_UTF8,WC_ERR_INVALID_CHARS,text.data(),static_cast<int>(text.size()),nullptr,0,nullptr,nullptr);if(!n)return {};
     std::string out(n,0);WideCharToMultiByte(CP_UTF8,WC_ERR_INVALID_CHARS,text.data(),static_cast<int>(text.size()),out.data(),n,nullptr,nullptr);return out;}
 std::wstring Number(float value,unsigned precision){std::wostringstream out;out<<std::fixed<<std::setprecision(precision)<<value;return out.str();}
-bool ParseKey(std::wstring text,Hotkey& result){
+namespace {
+struct NamedKey {UINT key;const wchar_t* name;};
+constexpr NamedKey namedKeys[]={
+    {VK_SPACE,L"Space"},{VK_TAB,L"Tab"},{VK_RETURN,L"Enter"},{VK_BACK,L"Backspace"},
+    {VK_INSERT,L"Insert"},{VK_DELETE,L"Delete"},{VK_HOME,L"Home"},{VK_END,L"End"},
+    {VK_PRIOR,L"PageUp"},{VK_NEXT,L"PageDown"},{VK_LEFT,L"Left"},{VK_RIGHT,L"Right"},{VK_UP,L"Up"},{VK_DOWN,L"Down"}
+};
+std::wstring KeyName(UINT key){
+    if((key>='A'&&key<='Z')||(key>='0'&&key<='9'))return std::wstring(1,static_cast<wchar_t>(key));
+    if(key>=VK_F1&&key<=VK_F24)return L"F"+std::to_wstring(key-VK_F1+1);
+    for(const auto& item:namedKeys)if(item.key==key)return item.name;return {};
+}
+}
+bool ValidHotkey(Hotkey key,bool allowSingle){
+    if((!allowSingle&&!key.modifiers)||(key.modifiers&~(MOD_CONTROL|MOD_SHIFT|MOD_ALT))||KeyName(key.key).empty())return false;
+    if((key.modifiers&MOD_ALT)&&(key.key==VK_F4||key.key==VK_TAB||key.key==VK_SPACE))return false;
+    if((key.modifiers&(MOD_CONTROL|MOD_ALT))==(MOD_CONTROL|MOD_ALT)&&key.key==VK_DELETE)return false;
+    return true;
+}
+bool ParseKey(std::wstring text,Hotkey& result,bool allowSingle){
     text.erase(std::remove_if(text.begin(),text.end(),[](wchar_t c){return iswspace(c)!=0;}),text.end());
     std::transform(text.begin(),text.end(),text.begin(),[](wchar_t c){return static_cast<wchar_t>(towupper(c));});Hotkey out{0,0};
+    if(text.empty()||text.back()==L'+')return false;
     std::wstringstream in(text);std::wstring word;
     while(std::getline(in,word,L'+')){
         if(word==L"CTRL")out.modifiers|=MOD_CONTROL;else if(word==L"SHIFT")out.modifiers|=MOD_SHIFT;else if(word==L"ALT")out.modifiers|=MOD_ALT;
         else{if(out.key)return false;if(word.size()==1&&((word[0]>='A'&&word[0]<='Z')||(word[0]>='0'&&word[0]<='9')))out.key=word[0];
-            else if(word==L"SPACE")out.key=VK_SPACE;
-            else if(word.size()>=2&&word.size()<=3&&word[0]=='F'){wchar_t* end=nullptr;auto v=wcstoul(word.c_str()+1,&end,10);if(*end||v<1||v>12)return false;out.key=VK_F1+static_cast<UINT>(v-1);}else return false;}
+            else if(word.size()>=2&&word.size()<=3&&word[0]=='F'){wchar_t* end=nullptr;auto v=wcstoul(word.c_str()+1,&end,10);if(*end||v<1||v>24)return false;out.key=VK_F1+static_cast<UINT>(v-1);}
+            else{for(const auto& item:namedKeys)if(_wcsicmp(word.c_str(),item.name)==0){out.key=item.key;break;}if(!out.key)return false;}}
     }
-    if(!out.key||!out.modifiers)return false;result=out;return true;
+    if(!ValidHotkey(out,allowSingle))return false;result=out;return true;
 }
 std::wstring KeyText(Hotkey key){std::wstring out;if(key.modifiers&MOD_CONTROL)out+=L"Ctrl+";if(key.modifiers&MOD_SHIFT)out+=L"Shift+";if(key.modifiers&MOD_ALT)out+=L"Alt+";
-    if(key.key==VK_SPACE)out+=L"Space";else if(key.key>=VK_F1&&key.key<=VK_F12)out+=L"F"+std::to_wstring(key.key-VK_F1+1);else out+=static_cast<wchar_t>(key.key);return out;}
+    const auto name=KeyName(key.key);return name.empty()?std::wstring{}:out+name;}
 std::filesystem::path SettingsPath(bool overlay){PWSTR path=nullptr;if(FAILED(SHGetKnownFolderPath(FOLDERID_LocalAppData,0,nullptr,&path)))throw std::runtime_error("LocalAppData unavailable");
     std::filesystem::path p=path;CoTaskMemFree(path);return p/(overlay?L"TruckCompanionOverlay":L"TruckCompanionPanel")/L"settings.json";}
 namespace {
@@ -43,8 +63,8 @@ Settings LoadSettings(std::wstring& warning,bool overlay){
         auto integer=[&](const char* k,int fallback,int low,int high){auto x=item(k);if(!x.is<double>())return fallback;auto n=x.get<double>();return std::isfinite(n)&&n>=low&&n<=high&&std::floor(n)==n?static_cast<int>(n):fallback;};
         s.x=integer("x",INT_MIN,-100000,100000);s.y=integer("y",INT_MIN,-100000,100000);s.width=integer("width",s.width,430,900);s.height=integer("height",s.height,overlay?360:600,1200);
         s.opacity=integer("opacity",235,130,255);s.font=integer("font",14,12,20);if(item("followGame").is<bool>())s.followGame=item("followGame").get<bool>();s.account=Id(item("account"));
-        if(item("visibleKey").is<std::string>())ParseKey(Wide(item("visibleKey").get<std::string>()),s.visible);
-        if(item("editKey").is<std::string>())ParseKey(Wide(item("editKey").get<std::string>()),s.edit);
+        if(item("visibleKey").is<std::string>())ParseKey(Wide(item("visibleKey").get<std::string>()),s.visible,overlay);
+        if(item("editKey").is<std::string>())ParseKey(Wide(item("editKey").get<std::string>()),s.edit,overlay);
         if(s.visible.modifiers==s.edit.modifiers&&s.visible.key==s.edit.key){s.visible={MOD_CONTROL|MOD_SHIFT,'V'};s.edit={MOD_CONTROL|MOD_SHIFT,'E'};}
         const auto favorites=item("favorites");
         if(favorites.is<picojson::array>()){for(const auto& x:favorites.get<picojson::array>()){if(s.favorites.size()>=512)break;if(auto id=Id(x))s.favorites.insert(id);}}

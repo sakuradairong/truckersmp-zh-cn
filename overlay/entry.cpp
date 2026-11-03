@@ -10,7 +10,7 @@ TMP_EXPORT bool TMP_API truckersmp_init(const TruckersMP_Host* host,TruckersMP_P
     if(!host||!desc||host->m_size<sizeof *host||desc->m_size<sizeof *desc||!host->m_ctx||!host->DeclareVersion||!host->GetApi||!host->Free||session)return false;
     std::unique_ptr<TruckersMP::Session> nextSession;std::unique_ptr<overlay::Runtime> nextRuntime;
     try{
-        TruckersMP::PluginInfo info;info.m_name="Truck Companion Overlay";info.m_author="RainySY";info.m_version="0.2.3";
+        TruckersMP::PluginInfo info;info.m_name="Truck Companion Overlay";info.m_author="RainySY";info.m_version="0.2.4";
         info.m_description="Self-drawn DX11 companion UI through the public Render/Input SDK; no private client hooks or resource overrides.";TruckersMP::FillPluginDesc(desc,info);
         nextSession=TruckersMP::Session::Create(host);if(!nextSession)return false;
         if(!nextSession->Render().IsAvailable()||!nextSession->Input().IsAvailable()||!nextSession->Player().IsAvailable()||!nextSession->Vehicle().IsAvailable()||!nextSession->Network().IsAvailable()||!nextSession->Account().IsAvailable())return false;

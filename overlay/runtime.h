@@ -15,6 +15,9 @@ class Runtime {
     bool stopped_=false,ready_=false,shown_=true,editing_=false,cursor_=false,mouseLock_=false,keyLock_=false;
     bool requestMode_=false,allowRequests_=false,dirty_=false;
     bool rendererWarning_=false;
+    bool rightToggleHeld_=false,suppressKeysUntilRelease_=false;
+    int recordingKey_=0;
+    std::string recordingError_,settingsMessage_;
     std::array<bool,256> keys_{};
     std::array<bool,3> captured_{};
     std::uint64_t nextRead_=0,nextSave_=0,nextOffer_=0,saveSerial_=0,epoch_=0,rendererGeneration_=0;
@@ -22,9 +25,13 @@ class Runtime {
     ImVec2 boundsMin_{},boundsMax_{};
     int page_=0,filter_=0,sort_=0,selected_=-1;
     std::uint64_t selectedAccount_=0;
-    char search_[192]{},accountText_[24]{},visibleKey_[64]{},editKey_[64]{};
+    char search_[192]{},accountText_[24]{};
     std::string message_;
     bool Matches(const companion::Hotkey& key,unsigned pressed) const;
+    unsigned Modifiers() const;
+    void BeginKeyCapture(int target);
+    void EndKeyCapture();
+    void CaptureKey(unsigned key,bool edge);
     void Key(TruckersMP::InputKeyEvent& event);
     void Character(TruckersMP::InputCharEvent& event);
     void MouseMove(TruckersMP::InputMouseMoveEvent& event);

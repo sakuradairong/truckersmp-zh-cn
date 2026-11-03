@@ -16,7 +16,7 @@ struct Reply {DWORD status=0,retry=60;std::string body;};
 bool Stopped(HANDLE event){return WaitForSingleObject(event,0)==WAIT_OBJECT_0;}
 Reply Get(const std::wstring& path,HANDLE stop){
     Reply out;if(Stopped(stop))return out;
-    Internet session{WinHttpOpen(L"TruckCompanionOverlay/0.2.3",WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,WINHTTP_NO_PROXY_NAME,WINHTTP_NO_PROXY_BYPASS,0)};
+    Internet session{WinHttpOpen(L"TruckCompanionOverlay/0.2.4",WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,WINHTTP_NO_PROXY_NAME,WINHTTP_NO_PROXY_BYPASS,0)};
     if(!session.h)return out;WinHttpSetTimeouts(session.h,2000,2000,2000,2000);
     Internet connection{WinHttpConnect(session.h,L"api.truckersmp.com",INTERNET_DEFAULT_HTTPS_PORT,0)};if(!connection.h||Stopped(stop))return out;
     Internet request{WinHttpOpenRequest(connection.h,L"GET",path.c_str(),nullptr,WINHTTP_NO_REFERER,WINHTTP_DEFAULT_ACCEPT_TYPES,WINHTTP_FLAG_SECURE)};if(!request.h)return out;
