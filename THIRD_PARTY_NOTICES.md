@@ -16,13 +16,25 @@ their trademarks, or user-supplied fonts and SDKs. This is an unofficial project
   The BSD 2-Clause license is preserved in [vendor/picojson/LICENSE.txt](vendor/picojson/LICENSE.txt)
   and the source header, and is included in the installer's runtime licenses.
   Upstream header SHA-256: `5ddf7276d04926da7be243e7af49258e78cc27278ee9097ba45b942c7a6b5f9d`.
+- **TruckersMP GameClientSDK** is included in `vendor/tmp-sdk/` under its MIT
+  license. Source: <https://github.com/TruckersMP/GameClientSDK>; the upstream
+  revision is recorded in `vendor/tmp-sdk/COMMIT`. The companion targets use
+  the public SDK; the original native localization installer does not.
+- **Dear ImGui 1.92.9** is included in `vendor/imgui-1.92.9/` under its MIT
+  license. Source: <https://github.com/ocornut/imgui>. The included DX11 backend
+  restores additional shader state and class-instance references as documented
+  in `vendor/imgui-1.92.9/COMPANION-NOTES.md`. The overlay uses public TMP input
+  and rendering callbacks, without a Win32 WndProc backend or MinHook.
 - **SCS Telemetry SDK 1.16** is an external build prerequisite and is not
   redistributed here. Official archive:
   <https://download.eurotrucksimulator2.com/scs_sdk_1_16.zip>.
   Reviewed archive SHA-256:
   `49821e25568f4d7e462135f577f8fef2ab197326404f2c1daef139b8f3dc5e69`.
-  Obtain it from SCS and follow its terms. Only the game loader entry point is
-  used; this project does not link to the TruckersMP SDK.
+  Obtain it from SCS and follow its terms. The original localization target
+  uses only its game loader entry point; `panel/` and `overlay/` also use its
+  telemetry channels. Companion packages retain the selected SDK's root
+  headers for their notices. The SDK source directory remains excluded from Git.
+
 - **Pillow**, **Capstone**, and **pefile** are external Python dependencies.
   The graphical installer bundles Python, Tcl/Tk and Pillow, with runtime license
   texts accessible in its license viewer. Capstone and pefile are developer-only
@@ -50,6 +62,10 @@ their trademarks, or user-supplied fonts and SDKs. This is an unofficial project
 - **Tcl 8.6.12**'s license is provided at
   [licenses/Tcl-8.6.12.txt](licenses/Tcl-8.6.12.txt) for Python distributions that
   omit this file. Other Tcl versions must provide their own matching notice.
+
+The companion targets reuse PicoJSON under its existing BSD 2-Clause license.
+Their packages retain PicoJSON, TMP SDK (where used), and ImGui (overlay only)
+notices. Chinese system fonts are loaded locally and are not redistributed.
 
 Resource profiles contain translation and style edits. Full client RML/Lua/JSON
 resources, official binaries and executable test fixtures are excluded from Git
