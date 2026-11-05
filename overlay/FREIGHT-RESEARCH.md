@@ -1,3 +1,5 @@
+> 历史研究材料。版本与“本轮”描述对应当时调查，不代表当前实现。当前仅维护 overlay；见 [货运指南](FREIGHT-COPY.md)与[提交反馈调查](FREIGHT-FEEDBACK.md)。
+
 # 自选货运与到货场接取：接口调查及实施路线
 
 调查日期：2026-11-03。对应面板：Truck Companion Overlay 0.2.1。

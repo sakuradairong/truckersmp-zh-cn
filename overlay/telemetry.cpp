@@ -3,11 +3,19 @@ namespace overlay {
 namespace {
 SRWLOCK ownLock=SRWLOCK_INIT;
 companion::Own own,scsData;
+JobTelemetry job,scsJob;
+std::uint64_t telemetryGeneration=0;
+bool configuredThisFrame=false;
 bool scsActive=false,registered[6]{},events[7]{};
 scs_telemetry_unregister_from_channel_t removeChannel=nullptr;
 scs_telemetry_unregister_from_event_t removeEvent=nullptr;
 const char* channels[]={"truck.speed","truck.fuel.amount","truck.engine.gear","truck.navigation.distance","truck.navigation.speed.limit","truck.engine.rpm"};
-void Publish(){scsData.active=1;scsData.tick=GetTickCount64();if(TryAcquireSRWLockExclusive(&ownLock)){own=scsData;ReleaseSRWLockExclusive(&ownLock);}}
+void Publish(){
+    scsData.active=1;scsData.tick=GetTickCount64();
+    scsJob.active=events[SCS_TELEMETRY_EVENT_frame_start]&&events[SCS_TELEMETRY_EVENT_configuration];scsJob.tick=scsData.tick;scsJob.paused=scsData.paused!=0;
+    scsJob.speedKnown=(scsData.fields&companion::OwnSpeed)!=0;scsJob.kmh=scsData.kmh;scsJob.thread=GetCurrentThreadId();
+    if(TryAcquireSRWLockExclusive(&ownLock)){own=scsData;job=scsJob;ReleaseSRWLockExclusive(&ownLock);}
+}
 SCSAPI_VOID Channel(const scs_string_t,const scs_u32_t,const scs_value_t* value,const scs_context_t context){
     unsigned i=static_cast<unsigned>(reinterpret_cast<std::uintptr_t>(context));if(i>=6)return;auto bit=1u<<i;scsData.fields&=~bit;if(!value)return;
     if(i==2){if(value->type==SCS_VALUE_TYPE_s32&&value->value_s32.value>=-128&&value->value_s32.value<=128){scsData.gear=value->value_s32.value;scsData.fields|=bit;}return;}
@@ -24,13 +32,28 @@ template<std::size_t N>bool Attribute(char(&text)[N],const scs_named_value_t* va
     return false;
 }
 SCSAPI_VOID ScsEvent(scs_event_t event,const void* value,scs_context_t){
+    if(event==SCS_TELEMETRY_EVENT_frame_start){
+        auto* frame=static_cast<const scs_telemetry_frame_start_t*>(value);
+        if(frame&&(frame->flags&SCS_TELEMETRY_FRAME_START_FLAG_timer_restart)){
+            scsJob.generation=++telemetryGeneration;
+            if(!configuredThisFrame)scsJob.known=false;
+        }
+        configuredThisFrame=false;
+    }
     if(event==SCS_TELEMETRY_EVENT_started)scsData.paused=0;
     if(event==SCS_TELEMETRY_EVENT_paused)scsData.paused=1;
     if(event==SCS_TELEMETRY_EVENT_configuration){auto* c=static_cast<const scs_telemetry_configuration_t*>(value);
         if(c&&c->id&&!std::strcmp(c->id,"job")){scsData.jobFields=0;scsData.cargo[0]=scsData.from[0]=scsData.to[0]=0;
             if(Attribute(scsData.cargo,c->attributes,"cargo"))scsData.jobFields|=1;
             if(Attribute(scsData.from,c->attributes,"source.city"))scsData.jobFields|=2;
-            if(Attribute(scsData.to,c->attributes,"destination.city"))scsData.jobFields|=4;}}
+            if(Attribute(scsData.to,c->attributes,"destination.city"))scsData.jobFields|=4;
+            const auto revision=scsJob.revision+1,generation=scsJob.generation;
+            scsJob={};scsJob.revision=revision;scsJob.generation=generation;scsJob.configurationTick=GetTickCount64();
+            scsJob.known=c->attributes!=nullptr;scsJob.hasJob=c->attributes&&c->attributes[0].name;
+            Attribute(scsJob.cargoId,c->attributes,"cargo.id");Attribute(scsJob.sourceCityId,c->attributes,"source.city.id");
+            Attribute(scsJob.sourceCompanyId,c->attributes,"source.company.id");Attribute(scsJob.destinationCityId,c->attributes,"destination.city.id");
+            Attribute(scsJob.destinationCompanyId,c->attributes,"destination.company.id");Attribute(scsJob.market,c->attributes,"job.market");
+            configuredThisFrame=true;}}
     if(event==SCS_TELEMETRY_EVENT_frame_end||event==SCS_TELEMETRY_EVENT_started||event==SCS_TELEMETRY_EVENT_paused)Publish();
 }
 }
@@ -39,16 +62,17 @@ scs_result_t StartScs(scs_u32_t version,const scs_telemetry_init_params_t* param
     if(!params)return SCS_RESULT_invalid_parameter;if(scsActive)return SCS_RESULT_ok;
     auto* p=static_cast<const scs_telemetry_init_params_v100_t*>(params);
     if(!p->register_for_channel||!p->register_for_event||!p->unregister_from_channel||!p->unregister_from_event)return SCS_RESULT_invalid_parameter;
-    scsData={};scsActive=true;removeChannel=p->unregister_from_channel;removeEvent=p->unregister_from_event;
+    scsData={};scsJob={};scsJob.generation=++telemetryGeneration;configuredThisFrame=false;scsActive=true;removeChannel=p->unregister_from_channel;removeEvent=p->unregister_from_event;
     for(unsigned i=0;i<6;++i)registered[i]=p->register_for_channel(channels[i],SCS_U32_NIL,i==2?SCS_VALUE_TYPE_s32:SCS_VALUE_TYPE_float,SCS_TELEMETRY_CHANNEL_FLAG_each_frame|SCS_TELEMETRY_CHANNEL_FLAG_no_value,Channel,reinterpret_cast<scs_context_t>(static_cast<std::uintptr_t>(i)))==SCS_RESULT_ok;
-    for(auto e:{SCS_TELEMETRY_EVENT_frame_end,SCS_TELEMETRY_EVENT_started,SCS_TELEMETRY_EVENT_paused,SCS_TELEMETRY_EVENT_configuration})events[e]=p->register_for_event(e,ScsEvent,nullptr)==SCS_RESULT_ok;
+    for(auto e:{SCS_TELEMETRY_EVENT_frame_start,SCS_TELEMETRY_EVENT_frame_end,SCS_TELEMETRY_EVENT_started,SCS_TELEMETRY_EVENT_paused,SCS_TELEMETRY_EVENT_configuration})events[e]=p->register_for_event(e,ScsEvent,nullptr)==SCS_RESULT_ok;
     if(!registered[0]||!events[2]||!events[3]||!events[4]){StopScs();return SCS_RESULT_generic_error;}return SCS_RESULT_ok;
 }
 void StopScs(){if(!scsActive)return;scsActive=false;for(unsigned i=0;i<6;++i)if(registered[i]){removeChannel(channels[i],SCS_U32_NIL,i==2?SCS_VALUE_TYPE_s32:SCS_VALUE_TYPE_float);registered[i]=false;}
     for(unsigned e=1;e<7;++e)if(events[e]){removeEvent(e);events[e]=false;}
-    AcquireSRWLockExclusive(&ownLock);own={};ReleaseSRWLockExclusive(&ownLock);
+    AcquireSRWLockExclusive(&ownLock);own={};job={};ReleaseSRWLockExclusive(&ownLock);
 }
 companion::Own ReadOwn(){companion::Own result;if(TryAcquireSRWLockShared(&ownLock)){result=own;ReleaseSRWLockShared(&ownLock);}return result;}
+JobTelemetry ReadJob(){JobTelemetry result;if(TryAcquireSRWLockShared(&ownLock)){result=job;ReleaseSRWLockShared(&ownLock);}return result;}
 void Players::Reset(){players_.clear();waiting_.clear();world_={};world_.active=1;world_.tick=GetTickCount64();world_.epoch=++epoch_;cursor_=-1;online_=false;dirty_=true;next_=nextRefresh_=0;}
 void Players::Enter(const TruckersMP::Player& player){
     auto id=player.GetPlayerID();if(!id||*id<0)return;auto account=player.GetAccountID().value_or(0);

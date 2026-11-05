@@ -150,6 +150,9 @@ void Runtime::Selected(){
         // Keep the toggle identity stable when its visible label changes.
         if(ImGui::Button(favorite?"取消关注###ToggleFavorite":"关注###ToggleFavorite")){if(favorite)settings_.favorites.erase(player->account);else if(settings_.favorites.size()<512)settings_.favorites.insert(player->account);else message_="关注列表上限为 512 人。";MarkDirty();}
         ImGui::SameLine();if(ImGui::Button("公开主页###OpenProfile"))service_->OpenProfile(player->account);
+        ImGui::SameLine();if(ImGui::Button("任务复制###FreightTarget")){
+            freightTarget_={player->id,player->account,world.epoch,world.server,Clean(player->name)};page_=2;freightMode_=1;
+        }
         ImGui::PopID();ImGui::PopID();
     }
 }
@@ -173,9 +176,160 @@ void Runtime::Freight(){
         ImGui::TableNextColumn();Dim("导航剩余距离");ImGui::TableNextColumn();Label(live&&(own_.fields&companion::Navigation)?Num(own_.navigationKm,1)+" km":"—");ImGui::EndTable();
     }
     ImGui::Spacing();Dim("货物和城市名称跟随游戏语言。");ImGui::Separator();
-    Label("自选货运 / 到场接取");
-    ImGui::TextWrapped("当前版本只展示任务。创建任务及到货场直接接取，请使用 TMP 原版货运调度器。");
-    ImGui::Spacing();ImGui::TextWrapped("本面板的自选货运仍在研究中：公开接口尚未提供生成或接取任务功能，暂时无法代为操作原版调度器。");
+    if(Nav("自选做货###FreightModeGenerate",freightMode_==0,ImGui::GetFontSize()*8))freightMode_=0;
+    ImGui::SameLine();if(Nav("复制任务###FreightModeCopy",freightMode_==1,ImGui::GetFontSize()*8))freightMode_=1;
+    ImGui::Spacing();
+    if(freightMode_==0)FreightEditor();else FreightCopy();
+    ImGui::Spacing();ImGui::Separator();Label("本次请求");
+    if(freight_.Serial()){
+        const auto& target=freight_.Target();
+        const auto title=freight_.Operation()==FreightOperation::Generate?"自选货运":freight_.Operation()==FreightOperation::CopyOnline?"WoT 复制":"普通任务复制";
+        Dim("#"+std::to_string(freight_.Serial())+" · "+title+" · "+target.name);
+    }
+    Accent(freight_.PhaseText());
+    if(freight_.Pending()&&!freight_.Queued())Dim("等待 "+std::to_string(freight_.WaitingSeconds())+" 秒 · 尚无可读取的服务端确认");
+    ImGui::TextWrapped("%s",freight_.Message().c_str());
+    if(freight_.Serial()&&ImGui::TreeNode("诊断详情###FreightDiagnostics")){
+        ImGui::TextWrapped("%s",freight_.Diagnostics().c_str());
+        ImGui::TreePop();
+    }
+    ImGui::BeginDisabled(!editing_);
+    if(freight_.CanConfirmJob()){
+        if(ImGui::Button("已核对：当前任务与请求一致###ConfirmFreightResult"))freight_.Confirm(session_,ReadJob());
+    }else if(freight_.ManualGenerationConfirmation()){
+        if(ImGui::Button("已在原版核对货单生成###ConfirmGeneratedOffer"))freight_.Confirm(session_,ReadJob());
+    }
+    if(freight_.Pending()&&ImGui::Button(freight_.Queued()?"取消尚未提交的请求###StopFreightTracking":"停止等待（不撤销请求）###StopFreightTracking"))freight_.Stop(session_);
+    if(freight_.CanReviewUnresolved()){
+        ImGui::Spacing();ImGui::TextWrapped("请先在原版确认：没有待处理的接货提示，且当前没有运输任务。结束记录只解除本面板的等待限制，不撤销原版请求，也不会重新发送。");
+        const auto recovery=freight_.RecoveryUnavailable(session_,players_.Read(),ReadJob());
+        if(!recovery.empty())ImGui::TextWrapped("%s",recovery.c_str());
+        ImGui::BeginDisabled(!recovery.empty());
+        if(ImGui::Button("已核对，结束此记录###CloseUnresolvedFreight")&&
+           freight_.CloseUnresolved(session_,players_.Read(),ReadJob(),freight_.Serial()))freightTarget_={};
+        ImGui::EndDisabled();
+    }
+    ImGui::EndDisabled();
+}
+void Runtime::FreightNotice(){
+    const float width=std::min(380.f,renderer_.Width()-16);
+    ImGui::SetNextWindowPos({renderer_.Width()-8,8},ImGuiCond_Always,{1,0});
+    ImGui::SetNextWindowSize({width,0},ImGuiCond_Always);
+    ImGui::SetNextWindowBgAlpha(settings_.opacity/255.f);
+    const auto flags=ImGuiWindowFlags_NoInputs|ImGuiWindowFlags_NoFocusOnAppearing|ImGuiWindowFlags_NoNav|
+        ImGuiWindowFlags_NoSavedSettings|ImGuiWindowFlags_NoTitleBar|ImGuiWindowFlags_NoMove|ImGuiWindowFlags_AlwaysAutoResize;
+    if(ImGui::Begin("货运反馈###FreightNotice",nullptr,flags)){
+        Label("货运 #"+std::to_string(freight_.Serial())+" · "+freight_.PhaseText());
+        if(freight_.Pending())Dim("已等待 "+std::to_string(freight_.WaitingSeconds())+" 秒");
+        ImGui::TextWrapped("%s",freight_.Message().c_str());
+        ImGui::TextWrapped("按 %s 返回面板核对。",companion::Utf8(companion::KeyText(settings_.visible)).c_str());
+    }
+    ImGui::End();
+}
+void Runtime::FreightCopy(){
+    Label("复制附近玩家的任务");
+    if(freightTarget_.account){
+        Label(freightTarget_.name+" · 游戏 ID "+std::to_string(freightTarget_.player)+" · TMP "+std::to_string(freightTarget_.account));
+    }else Dim("先在“附近”中选中玩家，点击“任务复制”。");
+    const auto unavailable=freight_.Unavailable(session_,players_.Read(),job_,freightTarget_);
+    ImGui::BeginDisabled(!editing_||!unavailable.empty());
+    if(ImGui::Button("复制普通任务 · 原版确认###RequestNormalCopy"))freight_.Queue(session_,players_.Read(),job_,freightTarget_);
+    ImGui::EndDisabled();
+    if(!unavailable.empty())ImGui::TextWrapped("%s",unavailable.c_str());
+    const auto onlineUnavailable=freight_.Unavailable(session_,players_.Read(),job_,freightTarget_,FreightOperation::CopyOnline);
+    ImGui::BeginDisabled(!editing_||!onlineUnavailable.empty());
+    if(ImGui::Button("复制 WoT 任务 · 原版确认###RequestOnlineCopy"))freight_.Queue(session_,players_.Read(),job_,freightTarget_,FreightOperation::CopyOnline);
+    ImGui::EndDisabled();
+    if(!onlineUnavailable.empty()&&onlineUnavailable!=unavailable)ImGui::TextWrapped("%s",onlineUnavailable.c_str());
+    Dim(freight_.Compatibility());
+    ImGui::TextWrapped("调用后主面板隐藏并交还鼠标，右上角保留只读进度。若出现原版提示，请处理后按 %s 返回核对；未弹窗时不要连续重发。",companion::Utf8(companion::KeyText(settings_.visible)).c_str());
+    ImGui::TextWrapped("WoT 复制需要满足原版在线条件与对方分享权限；不创建任意路线的 WoT 合同。");
+}
+void Runtime::FreightEditor(){
+    const auto& view=freight_.Editor();
+    const auto loadReason=freight_.EditorUnavailable(session_,players_.Read(),job_,true);
+    ImGui::BeginDisabled(!editing_||!loadReason.empty());
+    if(ImGui::Button("载入 / 重置原版选项###LoadFreightEditor")){
+        FreightEditorAction action;action.kind=EditorActionKind::Refresh;freight_.QueueEditor(session_,players_.Read(),job_,std::move(action));
+    }
+    ImGui::EndDisabled();
+    if(!loadReason.empty())ImGui::TextWrapped("%s",loadReason.c_str());
+    ImGui::TextWrapped("%s",view.message.c_str());
+    if(!view.ready)return;
+    const auto reason=freight_.EditorUnavailable(session_,players_.Read(),job_);
+    const bool locked=!editing_||!reason.empty();
+    const char* labels[]={"起点城市","起点公司","终点城市","终点公司","货物","挂车","紧急程度"};
+    for(unsigned i=0;i<view.menus.size();++i){
+        ImGui::PushID(static_cast<int>(i));const auto& menu=view.menus[i];
+        const auto selected=std::find_if(menu.choices.begin(),menu.choices.end(),[&](const auto& c){return c.token==menu.selected;});
+        const std::string preview=selected==menu.choices.end()?"请选择":Clean(selected->label.c_str());
+        Dim(labels[i]);
+        const auto& style=ImGui::GetStyle();
+        const float comboWidth=std::max(1.f,ImGui::GetContentRegionAvail().x);
+        const float rowHeight=ImGui::GetTextLineHeightWithSpacing();
+        const float popupHeight=std::min(ImGui::GetMainViewport()->WorkSize.y-16.f,
+            ImGui::GetFrameHeightWithSpacing()+rowHeight*10.f+style.WindowPadding.y*2.f);
+        ImGui::SetNextItemWidth(comboWidth);
+        ImGui::BeginDisabled(locked||freight_.EditorQueued()||!menu.enabled);
+        // A negative-width input plus a visible trailing label feeds back into
+        // BeginCombo's auto-fit width. Pin the popup to the originating control.
+        ImGui::SetNextWindowSize({comboWidth,0.f});
+        ImGui::SetNextWindowSizeConstraints({comboWidth,0.f},{comboWidth,std::max(1.f,popupHeight)});
+        if(ImGui::BeginCombo("##FreightChoice",preview.c_str())){
+            auto& filter=freightFilters_[i];const bool appearing=ImGui::IsWindowAppearing();
+            if(appearing){filter.Clear();ImGui::SetKeyboardFocusHere();}
+            ImGui::SetNextItemWidth(std::max(1.f,ImGui::GetContentRegionAvail().x));
+            const bool filterChanged=ImGui::InputTextWithHint("##FreightFilter","搜索名称或编号",filter.InputBuf,IM_ARRAYSIZE(filter.InputBuf));
+            if(filterChanged)filter.Build();
+            std::vector<std::size_t> matches;
+            for(std::size_t n=0;n<menu.choices.size();++n){const auto search=menu.choices[n].label+" "+menu.choices[n].id;if(filter.PassFilter(search.c_str()))matches.push_back(n);}
+            ImGui::TextDisabled("匹配 %zu / %zu 项",matches.size(),menu.choices.size());
+            const float listHeight=std::min(rowHeight*static_cast<float>(std::clamp<std::size_t>(matches.size(),3,8)),
+                std::max(1.f,popupHeight-ImGui::GetFrameHeightWithSpacing()-rowHeight-style.WindowPadding.y*2.f));
+            if(ImGui::BeginChild("FreightChoices",{0,listHeight},ImGuiChildFlags_None)){
+                if(appearing||filterChanged)ImGui::SetScrollY(0);
+                if(menu.choices.empty())ImGui::TextWrapped("原版暂无选项。请先选择前面的城市或公司；起点城市为空时，请重新载入。");
+                else if(matches.empty())ImGui::TextWrapped("没有匹配项，请修改或清空搜索。");
+                else{
+                    ImGuiListClipper clipper;clipper.Begin(static_cast<int>(matches.size()),rowHeight);
+                    while(clipper.Step())for(int row=clipper.DisplayStart;row<clipper.DisplayEnd;++row){
+                        const auto index=matches[static_cast<std::size_t>(row)];const auto& choice=menu.choices[index];
+                        ImGui::PushID(static_cast<int>(index));ImGui::BeginDisabled(!choice.enabled);
+                        const auto caption=Clean(choice.label.c_str())+(choice.id.empty()?"":" · "+Clean(choice.id.c_str()));
+                        const float rowWidth=std::max(1.f,ImGui::GetContentRegionAvail().x);
+                        if(ImGui::Selectable((caption+"###NativeChoice").c_str(),choice.token==menu.selected,ImGuiSelectableFlags_None,{rowWidth,ImGui::GetTextLineHeight()})){
+                            FreightEditorAction action;action.kind=EditorActionKind::Select;action.field=i;action.choice=choice;
+                            freight_.QueueEditor(session_,players_.Read(),job_,std::move(action));
+                            ImGui::CloseCurrentPopup();
+                        }
+                        if(ImGui::IsItemHovered()&&ImGui::CalcTextSize(caption.c_str()).x>rowWidth)ImGui::SetTooltip("%s",caption.c_str());
+                        ImGui::EndDisabled();ImGui::PopID();
+                    }
+                }
+            }ImGui::EndChild();
+            ImGui::EndCombo();
+        }
+        ImGui::EndDisabled();ImGui::PopID();
+    }
+    ImGui::Spacing();
+    const char* checks[]={"仅兼容公司货物","使用已连接的自有挂车","按国家规则筛选挂车","到场立即接取","生成后导航至货场"};
+    for(unsigned i=0;i<view.toggles.size();++i){
+        ImGui::PushID(static_cast<int>(i)+100);bool checked=view.toggles[i].checked;
+        ImGui::BeginDisabled(locked||freight_.EditorQueued()||!view.toggles[i].enabled);
+        if(ImGui::Checkbox(checks[i],&checked)){
+            FreightEditorAction action;action.kind=EditorActionKind::Toggle;action.field=i;action.checked=checked;
+            freight_.QueueEditor(session_,players_.Read(),job_,std::move(action));
+        }
+        ImGui::EndDisabled();ImGui::PopID();
+    }
+    Dim("更改筛选或自有挂车会重载选项，请重新核对路线。");
+    if(!reason.empty())ImGui::TextWrapped("%s",reason.c_str());
+    ImGui::BeginDisabled(locked||freight_.EditorQueued()||!view.canGenerate);
+    if(ImGui::Button(view.toggles[3].checked?"生成并接取###SubmitFreightDraft":"生成货单###SubmitFreightDraft")){
+        FreightEditorAction action;action.kind=EditorActionKind::Generate;freight_.QueueEditor(session_,players_.Read(),job_,std::move(action));
+    }
+    ImGui::EndDisabled();
+    ImGui::TextWrapped("是否能立即接取由原版距离、车辆、路线和 DLC 条件决定。提交后会交还鼠标并隐藏本面板；使用显示快捷键返回核对结果。");
 }
 void Runtime::ProfilePage(){
     auto id=Account();Request(id,true);auto p=ProfileFor(id);
@@ -191,7 +345,7 @@ void Runtime::ProfilePage(){
     if(server)Label(std::to_string(server->players)+" / "+std::to_string(server->capacity)+" 在线 · 排队 "+std::to_string(server->queue));
     if(data_){Dim(data_->serverMessage);if(data_->serverTick)Dim("缓存 "+std::to_string((GetTickCount64()-data_->serverTick)/1000)+" 秒前更新");}
     ImGui::Spacing();Dim("VTC 约缓存 15 分钟，服务器约每分钟更新。");
-    ImGui::Separator();Dim("Truck Companion Overlay 0.2.5 · RainySY");if(ImGui::Button("作者 GitHub"))service_->OpenAuthor();
+    ImGui::Separator();Dim("Truck Companion Overlay 0.2.10 · RainySY");if(ImGui::Button("作者 GitHub"))service_->OpenAuthor();
 }
 void Runtime::SettingsPage(){
     Label("面板设置");Dim("仅修改本面板；不会改动游戏或 TMP 配置。");

@@ -1,6 +1,8 @@
+> 历史研究材料。版本与“本轮”描述对应当时调查，不代表当前实现。当前仅维护 overlay；见 [货运指南](FREIGHT-COPY.md)与[提交反馈调查](FREIGHT-FEEDBACK.md)。
+
 # 货运功能面板：深入研究与开发设计
 
-后续公开接入调查见 [做货功能：公开接入途径与接口要求](FREIGHT-INTEGRATION-OPTIONS.md)，以 0.2.5 为当前基线。已补齐原版官方说明、任务邀请命令、扩展权限及距离规则的证据差异。下文保留较早阶段记录，不代表本项目当前正在继续非公开接口定位或二进制分析。
+本文保留较早阶段记录，之后的公开接入调查见 [接口要求](FREIGHT-INTEGRATION-OPTIONS.md)。用户随后要求对照已安装面板进行静态研究并实现；当前 0.2.10 的可选本地适配见 [自选做货与任务复制](FREIGHT-COPY.md)。历史调查的范围描述不代表该本地构建只使用公开接口。
 
 研究日期：2026-11-03。基线：已安装的 Truck Companion Overlay 0.2.1。本文是设计与源码调查，以下新增能力均未实施。
 
@@ -244,7 +246,7 @@ flowchart TD
 
 新增 `overlay/freight_model.h`、`freight_telemetry.*`、`freight_views.cpp`，完善当前任务字段与 gameplay 记录。复用原有解析思路并保留字段有效性、单位和时效；按需单独引入完整 SDK 通道头文件。
 
-不要直接扩充共享的 `panel/protocol.h::Own` 来塞全部货运字段：该结构还服务外部面板，`Valid()` 对 `jobFields` 有既定掩码约束。先用 DLL 自有货运模型，避免无意破坏旧进程通信协议。
+不要直接扩充共享的 `overlay/model.h::Own` 来塞全部货运字段：该结构还服务外部面板，`Valid()` 对 `jobFields` 有既定掩码约束。先用 DLL 自有货运模型，避免无意破坏旧进程通信协议。
 
 ### B：目录、草稿与候选货场
 
@@ -278,7 +280,7 @@ flowchart TD
 除上述逐项链接外：
 
 - [TMP SDK 最新发布](https://github.com/TruckersMP/GameClientSDK/releases/latest)、[Gameplay](https://docs.truckersmp.com/client-sdk/modules/gameplay)、[User Interface](https://docs.truckersmp.com/client-sdk/modules/user-interface)、[Intents](https://docs.truckersmp.com/client-sdk/advanced/intents)。本轮重新读取。
-- 本仓库运行代码：`overlay/telemetry.cpp`、`overlay/views.cpp`、`panel/protocol.h`；历史统计实现另参考速度工具箱的 `src/freight_scs.h`。
+- 本仓库运行代码：`overlay/telemetry.cpp`、`overlay/views.cpp`、`overlay/model.h`；历史统计实现另参考速度工具箱的 `src/freight_scs.h`。
 - 完整 SDK 通道参考：SCS SDK 的 `common/scssdk_telemetry_common_channels.h`、`common/scssdk_telemetry_job_common_channels.h` 和 `scssdk_input.h`。
 - 另一个本地项目的存档复制参考：`ETS2Trainer/cpp/src/savecopy.cpp`；它不是本仓库的构建依赖。
 - 网页与源文件的只读文本快照存于忽略的 `build/freight-research/`；来源为公开页面和仓库，未下载第三方二进制。网页发布日期不等于本项目的兼容性验证日期。

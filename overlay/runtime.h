@@ -1,6 +1,7 @@
 #pragma once
 #include "renderer.h"
 #include "telemetry.h"
+#include "freight.h"
 #include <array>
 
 namespace overlay {
@@ -12,9 +13,15 @@ class Runtime {
     std::shared_ptr<const ServiceView> data_;
     companion::Settings settings_,draft_;
     companion::Own own_;
+    JobTelemetry job_;
+    FreightController freight_;
+    FreightTarget freightTarget_;
+    int freightMode_=0;
+    std::array<ImGuiTextFilter,7> freightFilters_{};
     bool stopped_=false,ready_=false,shown_=true,editing_=false,cursor_=false,mouseLock_=false,keyLock_=false;
     bool requestMode_=false,allowRequests_=false,dirty_=false;
     bool rendererWarning_=false;
+    bool freightNotice_=false;
     bool rightToggleHeld_=false,suppressKeysUntilRelease_=false;
     int recordingKey_=0;
     std::string recordingError_,settingsMessage_;
@@ -45,6 +52,9 @@ class Runtime {
     void Nearby();
     void Truck();
     void Freight();
+    void FreightNotice();
+    void FreightEditor();
+    void FreightCopy();
     void ProfilePage();
     void SettingsPage();
     void Draft();

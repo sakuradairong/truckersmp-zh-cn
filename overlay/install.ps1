@@ -1,7 +1,9 @@
 [CmdletBinding(DefaultParameterSetName='Install')]
 param(
     [Parameter(Mandatory=$true)][string]$GameRoot,
-    [Parameter(Mandatory=$true,ParameterSetName='Restore')][string]$Restore
+    [Parameter(Mandatory=$true,ParameterSetName='Restore')][string]$Restore,
+    [Parameter(Mandatory=$true,ParameterSetName='Disable')][switch]$Disable,
+    [Parameter(ParameterSetName='Install')][switch]$RejectDowngrade
 )
 $ErrorActionPreference = 'Stop'
 $gamePath = [IO.Path]::GetFullPath($GameRoot).TrimEnd('\')
@@ -72,7 +74,35 @@ $target = Join-Path $plugins 'TruckCompanionOverlay.dll'
 $backupRoot = Join-Path $gamePath 'companion-overlay-backups'
 $activePath = Join-Path $gamePath 'companion-overlay-active.json'
 foreach ($path in @($plugins,$target,$backupRoot,$activePath)) { Assert-GamePath $path }
+# Retain historical filenames only for receipt-based rollback.
 $legacyNames = @('PanelDataBridge.dll','TmpNativeSpeedBridge.dll','TmpSettingsZh.dll','SpeedLabelsPlugin.dll')
+# New installs migrate only this project's retired modules.
+$migrationNames = @('PanelDataBridge.dll','TmpSettingsZh.dll')
+
+if ($PSCmdlet.ParameterSetName -eq 'Disable') {
+    Assert-File $target
+    $archive = Join-Path $gamePath ('companion-overlay-disabled\' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '-' + [Guid]::NewGuid().ToString('N'))
+    $saved = Join-Path $archive 'TruckCompanionOverlay.dll'
+    $recordPath = Join-Path $archive 'disabled.json'
+    foreach ($path in @($archive,$saved,$recordPath)) { Assert-GamePath $path }
+    New-Item -ItemType Directory -Path $archive | Out-Null
+    $record = [ordered]@{schema=1;gameRoot=$gamePath;archivedPlugin=$saved;createdUtc=[DateTime]::UtcNow.ToString('o');status='preparing'}
+    Write-Json $recordPath $record
+    $moved = $false
+    try {
+        Assert-Stopped
+        Move-Item -LiteralPath $target -Destination $saved; $moved = $true
+        $record.status = 'disabled'; Write-Json $recordPath $record
+    } catch {
+        $reason = $_
+        if ($moved) { Publish-File $saved $target }
+        throw "Disable did not finish. Keep backup $archive. $reason"
+    }
+    # Keep the installation receipt chain: rollback and a later reinstall must
+    # retain earlier backups. No settings or other plugin is removed/restored.
+    Write-Host "Panel disabled. Archived plugin: $saved"
+    return
+}
 
 if ($PSCmdlet.ParameterSetName -eq 'Restore') {
     $receiptPath = [IO.Path]::GetFullPath($Restore)
@@ -127,23 +157,31 @@ if (!(Test-Path -LiteralPath (Join-Path $package 'TruckCompanionOverlay.dll') -P
 $variant = 'inprocess-dx11'
 $source = Join-Path $package 'TruckCompanionOverlay.dll'
 Assert-File $source
-$legacy = @($legacyNames | Where-Object { Test-Path -LiteralPath (Join-Path $plugins $_) -PathType Leaf })
+$legacy = @($migrationNames | Where-Object { (Test-Path -LiteralPath (Join-Path $plugins $_) -PathType Leaf) })
 foreach ($name in $legacy) { Assert-GamePath (Join-Path $plugins $name) }
 $hadBridge = Test-Path -LiteralPath $target -PathType Leaf
 $hadActive = Test-Path -LiteralPath $activePath -PathType Leaf
+$packageVersion = ''
+$packageInfo = Join-Path $package 'BUILD-INFO.json'
+if (Test-Path -LiteralPath $packageInfo -PathType Leaf) { $packageVersion = [string]((Read-Json $packageInfo).version) }
 if ($hadActive) {
     $active = Read-Json $activePath
     $priorPath = [IO.Path]::GetFullPath([string]$active.receipt); Assert-GamePath $priorPath
     if ([IO.Path]::GetDirectoryName([IO.Path]::GetDirectoryName($priorPath)) -ne $backupRoot -or [IO.Path]::GetFileName($priorPath) -ne 'receipt.json') { throw 'Invalid active receipt location.' }
     $prior = Read-Json $priorPath
     if ($active.schema -ne 1 -or $prior.status -ne 'installed' -or $prior.gameRoot -ne $gamePath) { throw 'Existing active installation record is inconsistent. Preserve it and resolve manually.' }
+    if ($RejectDowngrade) {
+        $oldVersion=$null; $newVersion=$null
+        if (![Version]::TryParse($packageVersion,[ref]$newVersion)) { throw 'Package version is invalid.' }
+        if ([Version]::TryParse([string]$prior.version,[ref]$oldVersion) -and $oldVersion -gt $newVersion) { throw 'A newer version is already installed. Use its installer, or restore the active installation before downgrading.' }
+    }
 }
 $backup = Join-Path $backupRoot ((Get-Date -Format 'yyyyMMdd-HHmmss') + '-' + [Guid]::NewGuid().ToString('N'))
 Assert-GamePath $backup
 New-Item -ItemType Directory -Path $backup -Force | Out-Null
 New-Item -ItemType Directory -Path $plugins -Force | Out-Null
 $receiptPath = Join-Path $backup 'receipt.json'
-$receipt = [ordered]@{ schema=1; gameRoot=$gamePath; createdUtc=[DateTime]::UtcNow.ToString('o'); variant=$variant; hadBridge=[bool]$hadBridge; hadActive=[bool]$hadActive; disabledLegacy=$legacy; status='preparing' }
+$receipt = [ordered]@{ schema=1; gameRoot=$gamePath; createdUtc=[DateTime]::UtcNow.ToString('o'); version=$packageVersion; variant=$variant; hadBridge=[bool]$hadBridge; hadActive=[bool]$hadActive; disabledLegacy=$legacy; status='preparing' }
 Write-Json $receiptPath $receipt
 if ($hadBridge) { Copy-Item -LiteralPath $target -Destination (Join-Path $backup 'TruckCompanionOverlay.dll') }
 if ($hadActive) { Copy-Item -LiteralPath $activePath -Destination (Join-Path $backup 'previous-active.json') }

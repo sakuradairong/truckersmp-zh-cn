@@ -30,8 +30,8 @@ bool ModifierKey(unsigned key){return key==VK_LCONTROL||key==VK_RCONTROL||key==V
 }
 bool Runtime::Start(){
     service_=Service::Start();if(!service_)return false;players_.Reset();
-    session_.Network().OnConnected.Register([this]{if(!stopped_)players_.Reset();});
-    session_.Network().OnDisconnected.Register([this]{if(!stopped_)players_.Reset();});
+    session_.Network().OnConnected.Register([this]{try{if(!stopped_){players_.Reset();freight_.SessionChanged(session_);freightTarget_={};}}catch(...){}});
+    session_.Network().OnDisconnected.Register([this]{try{if(!stopped_){players_.Reset();freight_.SessionChanged(session_);freightTarget_={};}}catch(...){}});
     session_.Player().OnStreamIn.Register([this](auto& event){try{if(!stopped_)players_.StreamIn(event.GetPlayer());}catch(...){}});
     session_.Player().OnStreamOut.Register([this](auto& event){try{if(!stopped_)players_.StreamOut(event.GetPlayer());}catch(...){}});
     session_.Input().OnKey.Register([this](auto& event){try{if(!stopped_)Key(event);}catch(...){LeaveEdit();}});
@@ -39,8 +39,11 @@ bool Runtime::Start(){
     session_.Input().OnMouseMove.Register([this](auto& event){try{if(!stopped_)MouseMove(event);}catch(...){LeaveEdit();}});
     session_.Input().OnMouseButton.Register([this](auto& event){try{if(!stopped_)MouseButton(event);}catch(...){LeaveEdit();}});
     session_.Input().OnMouseWheel.Register([this](auto& event){try{if(!stopped_)MouseWheel(event);}catch(...){LeaveEdit();}});
-    session_.Render().OnPostRender.Register([this]{if(stopped_)return;try{Frame();}catch(...){LeaveEdit();renderer_.Reset();message_="绘图已暂停，可按显示热键重新打开。";shown_=false;}});
-    session_.Core().LogMessage(TruckersMP::LogLevel::Info,"Truck Companion Overlay 0.2.5 initialized; UI appears on the first usable DX11 SDK frame.");
+    session_.Render().OnPostRender.Register([this]{if(stopped_)return;try{Frame();}catch(...){
+        try{freight_.Stop(session_);}catch(...){}
+        LeaveEdit();renderer_.Reset();message_="绘图已暂停，未完成的货运跟踪已停止；可按显示热键重新打开。";shown_=false;freightNotice_=false;
+    }});
+    session_.Core().LogMessage(TruckersMP::LogLevel::Info,NativeFreight::Included()?"Truck Companion Overlay 0.2.11 initialized; optional local native freight adapter included, runtime acceptance not verified.":"Truck Companion Overlay 0.2.11 initialized; public SDK build without native freight execution.");
     return true;
 }
 unsigned Runtime::Modifiers() const {
@@ -76,8 +79,8 @@ void Runtime::Key(TruckersMP::InputKeyEvent& event){
     if(suppressKeysUntilRelease_){suppressKeysUntilRelease_=std::any_of(keys_.begin(),keys_.end(),[](bool down){return down;});return;}
     if(edge&&key==VK_ESCAPE&&editing_){LeaveEdit();return;}
     bool typing=false;if(editing_&&renderer_.Context()){ContextScope scope(renderer_.Context());typing=ImGui::GetIO().WantTextInput;}
-    if(!typing&&edge&&Matches(settings_.visible,key)){shown_=!shown_;if(!shown_)LeaveEdit();return;}
-    if(!typing&&edge&&Matches(settings_.edit,key)){if(editing_)LeaveEdit();else{shown_=true;EnterEdit();}return;}
+    if(!typing&&edge&&Matches(settings_.visible,key)){shown_=!shown_;freightNotice_=false;if(!shown_)LeaveEdit();return;}
+    if(!typing&&edge&&Matches(settings_.edit,key)){freightNotice_=false;if(editing_)LeaveEdit();else{shown_=true;EnterEdit();}return;}
     if(!editing_||!renderer_.Context())return;ContextScope scope(renderer_.Context());auto& io=ImGui::GetIO();
     io.AddKeyEvent(ImGuiMod_Ctrl,keys_[VK_LCONTROL]||keys_[VK_RCONTROL]);io.AddKeyEvent(ImGuiMod_Shift,keys_[VK_LSHIFT]||keys_[VK_RSHIFT]);io.AddKeyEvent(ImGuiMod_Alt,keys_[VK_LMENU]||keys_[VK_RMENU]);io.AddKeyEvent(ImGuiMod_Super,keys_[VK_LWIN]||keys_[VK_RWIN]);
     auto mapped=GuiKey(key);if(key==VK_RETURN&&(event.GetFlags()&0x100))mapped=ImGuiKey_KeypadEnter;
@@ -126,15 +129,16 @@ void Runtime::LeaveEdit(){
 }
 void Runtime::MarkDirty(){dirty_=true;++saveSerial_;}
 void Runtime::Frame(){
-    players_.Update();own_=ReadOwn();auto now=GetTickCount64();
-    if(players_.Read().epoch!=epoch_){epoch_=players_.Read().epoch;selected_=-1;selectedAccount_=0;}
+    players_.Update();own_=ReadOwn();job_=ReadJob();auto now=GetTickCount64();
+    if(players_.Read().epoch!=epoch_){epoch_=players_.Read().epoch;selected_=-1;selectedAccount_=0;freightTarget_={};}
+    freight_.Update(session_,players_.Read(),job_,shown_&&editing_&&page_==2&&freightMode_==0&&renderer_.Focused());
     if(now>=nextRead_){nextRead_=now+200;if(auto data=service_->Read())data_=std::move(data);
         if(!ready_&&data_&&data_->ready){settings_=data_->settings;ready_=true;Draft();}}
     if(!ready_)return;
     if(dirty_&&now>=nextSave_){nextSave_=now+300;if(service_->Save(settings_,saveSerial_))dirty_=false;}
     if(!editing_&&(cursor_||mouseLock_||keyLock_))LeaveEdit();
     if(renderer_.Context()&&!renderer_.Focused()){LeaveEdit();keys_.fill(false);rightToggleHeld_=suppressKeysUntilRelease_=false;}
-    if(!shown_)return;
+    if(!shown_&&!freightNotice_)return;
     if(session_.Render().GetRendererID()!=TruckersMP::RendererID::DirectX11){
         if(!rendererWarning_){session_.Core().LogMessage(TruckersMP::LogLevel::Warning,"Overlay requires the official SDK DirectX11 renderer; drawing is suspended.");rendererWarning_=true;}
         LeaveEdit();renderer_.Reset();return;
@@ -146,13 +150,26 @@ void Runtime::Frame(){
         ContextScope scope(renderer_.Context());bool focus=renderer_.Focused();ImGui::GetIO().AddFocusEvent(focus);
         if(!focus){LeaveEdit();keys_.fill(false);rightToggleHeld_=suppressKeysUntilRelease_=false;}
         allowRequests_=now>=nextOffer_;if(allowRequests_)nextOffer_=now+250;
-        Draw();
+        if(shown_)Draw();else FreightNotice();
     }
     renderer_.End();
+    if(freight_.EditorQueued()&&!freight_.Queued()){
+        freight_.ProcessEditor(session_,players_.Read(),ReadJob(),shown_&&editing_&&page_==2&&freightMode_==0&&renderer_.Focused());
+        message_=freight_.Message();
+    }
+    if(freight_.Queued()){
+        LeaveEdit();
+        const auto mouse=session_.Input().IsGameMouseLocked(),keyboard=session_.Input().IsGameKeyboardLocked(),cursor=session_.Input().IsMouseVisible();
+        const bool released=renderer_.Focused()&&!cursor_&&!mouseLock_&&!keyLock_&&mouse&&keyboard&&cursor&&!*mouse&&!*keyboard&&!*cursor;
+        freight_.Execute(session_,players_.Read(),ReadJob(),released);
+        message_=freight_.Message();
+        if(freight_.Phase()==CopyPhase::AwaitingObservation){shown_=false;freightNotice_=true;}
+    }
     if(!shown_)LeaveEdit();else if(requestMode_){requestMode_=false;if(editing_)LeaveEdit();else EnterEdit();}
 }
 void Runtime::Shutdown() noexcept {
     if(stopped_)return;stopped_=true;
+    try{freight_.Stop(session_);}catch(...){}
     try{LeaveEdit();if(cursor_||mouseLock_||keyLock_)session_.Core().LogMessage(TruckersMP::LogLevel::Warning,"Input release returned an error during overlay shutdown.");}catch(...){}
     try{if(service_&&dirty_)service_->Save(settings_,++saveSerial_);}catch(...){}
     if(service_)service_->Stop();renderer_.Reset();data_.reset();service_.reset();

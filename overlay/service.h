@@ -1,5 +1,5 @@
 #pragma once
-#include "../panel/settings.h"
+#include "settings.h"
 #include <atomic>
 #include <deque>
 #include <map>
